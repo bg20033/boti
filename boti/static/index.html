@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="sq">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light"><title>Boti · Studio e klipeve</title>
+  <link rel="stylesheet" href="/static/style.css"><script src="/static/app.js" defer></script>
+<script src="/static/campaigns.js" defer></script><script src="/static/trials.js" defer></script></head>
+<body>
+  <div id="login" class="login-wrap" hidden>
+    <form id="login-form" class="login-card">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">b.</span> BOTI <small>STUDIO</small></div>
+      <h1>Hyr në main.</h1><p>Çelësi gjendet në skedarin privat <code>data/secrets/admin.token</code> të main-it.</p>
+      <label for="token">Çelësi i panelit</label><input id="token" type="password" autocomplete="current-password" required>
+      <button class="primary" type="submit">Hap panelin <span aria-hidden="true">→</span></button>
+      <p id="login-error" role="alert"></p>
+    </form>
+  </div>
+  <div id="studio" hidden>
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">b.</span> BOTI <small>STUDIO</small></div>
+      <div class="workspace-name">RRJETI LOKAL <span>●</span></div>
+      <nav aria-label="Paneli kryesor">
+        <button data-view="dashboard" class="nav-item active"><span aria-hidden="true">▦</span> Kontrolli</button>
+        <button data-view="clips" class="nav-item"><span aria-hidden="true">▷</span> Klipet <b id="nav-clips">0</b></button>
+        <button data-view="campaigns" class="nav-item"><span aria-hidden="true">◈</span> Fushatat</button>
+        <button data-view="accounts" class="nav-item"><span aria-hidden="true">◎</span> Llogaritë</button>
+        <button data-view="settings" class="nav-item"><span aria-hidden="true">⚙</span> Konfigurimi</button>
+      </nav>
+      <div class="sidebar-bottom"><span class="local-tag">AI LOKALE</span><p>Përpunimi në kompjuterët tu.</p><button id="logout" class="text-button">Dil nga paneli ↗</button></div>
+    </aside>
+    <main>
+      <header class="topbar"><span>Hapësira e punës <i>/</i> <strong id="view-title">Kontrolli</strong></span><span id="connection" class="connection">Duke u lidhur…</span></header>
+      <p id="runtime-version" class="muted" aria-label="Versioni aktiv"></p>
+      <div id="notice" class="notice" role="status" hidden></div>
+      <section id="view-dashboard" class="view">
+        <div class="heading"><div><p class="eyebrow">NGA STREAMI, TE MOMENTI</p><h1>Studio e klipeve<span>.</span></h1><p>Dërgo videon. PC-të e marrin punën prej këtu.</p></div><button id="pause" class="secondary">Pezullo punët</button></div>
+        <form id="job-form" class="submit-panel"><label for="vod-url">Linku i videos: Kick, Twitch ose YouTube</label><div class="input-row"><input id="vod-url" type="url" placeholder="https://www.youtube.com/watch?v=… · kick.com/kanali/videos/… · twitch.tv/videos/…"><button type="submit" class="primary">Shto në radhë <span aria-hidden="true">↗</span></button></div><label for="review-mode">Kontrolli<select id="review-mode"><option value="automatic">Automatik — pa aprovim për çdo klip</option><option value="manual">Kontroll njerëzor për fushatën</option></select></label><div class="settings-grid"><label for="inbox-file">Ose skedar nga dosja <code>data/inbox</code> e main-it<select id="inbox-file"><option value="">Pa skedar — përdor linkun</option></select></label><label for="source-label">Emri i burimit për skedarin<input id="source-label" maxlength="60" placeholder="P.sh. emri i streamerit ose podcast-it"></label></div><div class="form-note"><button type="button" id="start-trial" class="secondary">Provoje këtë VOD</button><span id="job-note">Automatik · Kontroll cilësie · Një korrigjim · 20–60 sekonda</span><button type="button" id="choose-groups" class="text-button">Të gjitha grupet ▾</button></div><div id="target-groups" class="target-groups" hidden></div></form>
+        <label>Fushata për VOD-in<select id="job-campaign"><option value="">Pa fushatë</option></select></label><p class="muted">Zgjidh fushatën para shtimit të videos. Rregullat e saj vendosin kohëzgjatjen, titrat, watermark-un dhe përshkrimin e çdo klipi.</p><div id="stats" class="stats"></div>
+        <div class="section-title"><h2>Katër PC. Një rrjedhë pune.</h2><span id="worker-summary" class="muted"></span></div>
+        <div id="workers" class="worker-grid"></div>
+        <div class="section-title"><h2>Ku po pret puna?</h2><span class="muted">Kohë të matura në 24 orët e fundit</span></div>
+        <div id="stage-metrics" class="stage-grid"></div>
+        <div class="section-title"><h2>Videot në punë</h2><span class="muted">Shkarkim → Transkriptim → Analizë → Editim → Kontroll</span></div>
+        <div class="table-wrap"><table><thead><tr><th>VIDEOJA</th><th>FAZA</th><th>PROGRESI</th><th>KLIPE</th><th></th></tr></thead><tbody id="jobs"></tbody></table></div>
+        <div class="section-title"><h2>Aktiviteti i fundit</h2><span id="disk-status" class="muted"></span></div><div id="events" class="events"></div>
+      </section>
+      <section id="view-clips" class="view" hidden>
+        <div class="heading"><div><p class="eyebrow">REZULTATET</p><h1>Momente gati për dalje<span>.</span></h1><p>Shiko klipet, shkarko paketën TikTok dhe kontrollo publikimet.</p></div><button id="refresh-clips" class="secondary">Rifresko</button></div>
+        <div id="review-progress" class="review-progress"></div>
+        <div id="clip-grid" class="clip-grid"></div><div class="pagination"><button id="prev-clips" class="secondary">← Mbrapa</button><span id="clip-page"></span><button id="next-clips" class="secondary">Tjetër →</button></div>
+      </section>
+      <section id="view-campaigns" class="view" hidden><div class="heading"><div><h1>Fushatat dhe dorëzimet</h1><p>Kopjo rregullat e fushatës nga clipping.net: PC-të presin dhe editojnë sipas tyre. Dorëzimi i linkut përfundon manualisht.</p></div><button id="add-campaign" class="primary">+ Fushatë</button></div><div id="campaign-list" class="account-groups"></div><div class="section-title"><h2>Postimet për clipping.net</h2><button id="refresh-submissions" class="secondary">Rifresko</button></div><div id="submission-list" class="events"></div><div class="pagination"><button id="sub-prev" class="secondary">←</button><span id="sub-page"></span><button id="sub-next" class="secondary">→</button></div></section><section id="view-accounts" class="view" hidden>
+        <div class="heading"><div><p class="eyebrow">DESTINACIONET</p><h1>Llogaritë e tua<span>.</span></h1><p>Çdo grup merr klipe të veçanta për tri platformat e veta.</p></div><button id="add-group" class="primary">+ Shto grup</button></div>
+        <div id="account-groups" class="account-groups"></div>
+      </section>
+      <section id="view-settings" class="view" hidden>
+        <div class="heading"><div><p class="eyebrow">KONTROLLET</p><h1>Ritmi dhe cilësia<span>.</span></h1><p>Kufijtë e punës, publikimi dhe profili i çdo burimi.</p></div></div>
+        <form id="settings-form" class="settings-card"><h2>Përpunimi dhe publikimi</h2><div class="settings-grid">
+          <label>Pragu i cilësisë / 100<input id="setting-score" type="number" min="0" max="100" required></label>
+          <label>Hapësira minimale e lirë / GB<input id="setting-disk" type="number" min="0" step="0.1" required></label>
+          <label>Kuota YouTube / projekt / ditë<input id="setting-quota" type="number" min="1" required></label>
+          <label>Synimi i klipeve / ditë<input id="setting-target" type="number" min="1" required></label>
+          <label>Video të gjata në përpunim njëkohësisht<input id="setting-active-jobs" type="number" min="1" max="20" required></label>
+          <label>Detyra të përgatitura për fazë<input id="setting-prefetch" type="number" min="1" max="100" required></label>
+          <label>Titrat<select id="setting-captions"><option value="highlight">Thekso fjalën që po thuhet</option><option value="plain">Titra të thjeshtë</option></select></label>
+        </div><label class="checkbox-row"><input id="setting-publish" type="checkbox"> Aktivizo publikimin automatik në YouTube dhe Instagram</label><p class="muted">Kërkon llogari të lidhura. Synimi i klipeve nuk ul pragun e cilësisë. Rrite kuotën vetëm pasi projekti YouTube ta ketë marrë kapacitetin.</p><button class="primary" type="submit">Ruaj konfigurimin</button></form>
+        <form id="source-form" class="settings-card"><h2>Profili i një streameri</h2><p class="muted">ID-ja e burimit shfaqet te hollësitë e videos pasi shkarkohet.</p><div class="settings-grid"><label>ID-ja e burimit<input id="source-id" required></label><label>Paraqitja<select id="source-mode"><option value="auto">Automatike</option><option value="talk">Bisedë</option><option value="gaming">Gaming</option></select></label><label>Gjuha e të folurit<input id="source-language" maxlength="3" pattern="[a-z]{2,3}" placeholder="Auto · sq për shqip, en për anglisht"></label><label>Emra dhe terma që përsëriten<input id="source-vocabulary" maxlength="500" placeholder="Emri i streamerit, emra lojërash…"></label></div><p class="muted">Gjuha dhe termat përdoren për videot e reja. Lëre gjuhën bosh për zbulim automatik.</p><p>Pozita e kamerës, opsionale: vlera 0–1 në raport me videon.</p><div class="camera-grid"><label>X<input id="camera-x" type="number" min="0" max="1" step="0.001"></label><label>Y<input id="camera-y" type="number" min="0" max="1" step="0.001"></label><label>Gjerësia<input id="camera-w" type="number" min="0.001" max="1" step="0.001"></label><label>Lartësia<input id="camera-h" type="number" min="0.001" max="1" step="0.001"></label></div><button class="secondary" type="submit">Ruaj profilin e burimit</button><div id="source-list"></div></form>
+        <div class="settings-card"><h2>Kontrolli i main-it</h2><pre id="doctor">Duke kontrolluar…</pre><p class="muted">Agjentët kontrollohen në kartelat e PC-ve. Cilësia dhe kapaciteti 24-orësh maten me videon reale.</p></div>
+      </section>
+    </main>
+  </div>
+  <dialog id="dialog"><div id="dialog-content"></div><button id="close-dialog" class="secondary">Mbyll</button></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>
