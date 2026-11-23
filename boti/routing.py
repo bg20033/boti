@@ -7,7 +7,7 @@ EDITORIAL = frozenset({"analyze", "quality"})
 EXECUTION = frozenset({"transcribe", "render", "repair"})
 
 
-def eligible_capabilities(workers, primary_id=None, now=None):
+def eligible_capabilities(workers, primary_id=None, now=None, render_revision=0):
     now = time.time() if now is None else now
     available = {}
     for worker in workers:
@@ -17,6 +17,12 @@ def eligible_capabilities(workers, primary_id=None, now=None):
         available[worker["id"]] = (
             set(capabilities) if not worker["paused"] and (worker["last_seen"] or 0) > now - 30 else set()
         )
+        if render_revision:
+            hardware = worker["hardware"]
+            if isinstance(hardware, str):
+                hardware = json.loads(hardware)
+            if hardware.get("render_revision", 0) < render_revision:
+                available[worker["id"]].discard("render")
     if not primary_id:
         return available
     primary = available.get(primary_id, set())

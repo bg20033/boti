@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light"><title>Boti · Studio e klipeve</title>
-  <link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/studio.css"><script src="/static/app.js" defer></script><script src="/static/library.js" defer></script>
+  <link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/studio.css"><script src="/static/app.js" defer></script><script src="/static/library.js" defer></script><script src="/static/studio-setup.js" defer></script>
 <script src="/static/campaigns.js" defer></script><script src="/static/trials.js" defer></script><script src="/static/feeds.js" defer></script></head>
 <body>
 <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></symbol><symbol id="i-play" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="m10 8 6 4-6 4Z"/></symbol><symbol id="i-campaign" viewBox="0 0 24 24"><path d="m4 9 13-5v16L4 15ZM17 9h3v6h-3M6 16l1 5h4l-1-4"/></symbol><symbol id="i-accounts" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 5"/></symbol><symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></symbol><symbol id="i-cpu" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 9h6v6H9ZM9 2v3m6-3v3M9 19v3m6-3v3M2 9h3m-3 6h3m14-6h3m-3 6h3"/></symbol></defs></svg>
@@ -60,7 +60,13 @@
 </section>
 <section id="view-campaigns" class="view" hidden><div class="heading"><div><h1>Fushatat dhe dorëzimet</h1><p>Kopjo rregullat e fushatës nga clipping.net: PC-të presin dhe editojnë sipas tyre. Dorëzimi i linkut përfundon manualisht.</p></div><button id="add-campaign" class="primary">+ Fushatë</button></div><div id="campaign-list" class="account-groups"></div><div class="section-title"><h2>Postimet për clipping.net</h2><button id="refresh-submissions" class="secondary">Rifresko</button></div><div id="submission-list" class="events"></div><div class="pagination"><button id="sub-prev" class="secondary">←</button><span id="sub-page"></span><button id="sub-next" class="secondary">→</button></div></section><section id="view-accounts" class="view" hidden>
         <div class="heading"><div><p class="eyebrow">DESTINACIONET</p><h1>Llogaritë e tua<span>.</span></h1><p>Çdo grup merr klipe të veçanta për tri platformat e veta.</p></div><button id="add-group" class="primary">+ Shto grup</button></div>
-        <div id="account-groups" class="account-groups"></div>
+        <div class="surface account-setup">
+  <div class="section-title"><div><p class="eyebrow">FILLIMI NË 3 HAPA</p><h2>Krijo llogaritë. Lidhi me studion.</h2></div><label class="inline-filter">Grupi<select id="setup-group" aria-label="Grupi për lidhjen e llogarive"></select></label></div>
+  <p class="muted">Krijo llogaritë në platformat përkatëse, pastaj lidh të njëjtat llogari këtu dhe verifikoji në clipping.net.</p>
+  <div id="account-onboarding" class="onboarding-grid"></div>
+  <details class="clipping-flow"><summary>Hapi 3 · Si dorëzohen videot në clipping.net?</summary><ol><li>Hyr në clipping.net dhe përfundo profilin Clipper.</li><li>Te Social accounts, shto secilën llogari. Vendose kodin që të japin në bio dhe përfundo verifikimin.</li><li>Zgjidh fushatën, lexo brief-in dhe cakto metodën e pagesës që kërkon fushata.</li><li>Publiko klipin në llogarinë e verifikuar. Te fushata → Submit clip, ngjite linkun e postimit dhe dorëzoje.</li></ol><p>Boti ruan fushatën, rregullat dhe linkun e postimit. Verifikimi i llogarisë dhe dorëzimi përfundohen në clipping.net.</p><a href="https://clipping.net/docs/clippers/accounts" target="_blank" rel="noopener noreferrer">Udhëzimi zyrtar për llogaritë ↗</a> · <a href="https://clipping.net/docs/clippers/posting" target="_blank" rel="noopener noreferrer">Dorëzimi i klipeve ↗</a></details>
+</div>
+<details class="all-account-groups"><summary>Grupet dhe llogaritë e tjera</summary><div id="account-groups" class="account-groups"></div></details>
       </section>
       <section id="view-settings" class="view" hidden>
         <div class="heading"><div><p class="eyebrow">KONTROLLET</p><h1>Ritmi dhe cilësia<span>.</span></h1><p>Kufijtë e punës, publikimi dhe profili i çdo burimi.</p></div></div>
@@ -74,6 +80,18 @@
           <label>Titrat<select id="setting-captions"><option value="highlight">Thekso fjalën që po thuhet</option><option value="plain">Titra të thjeshtë</option></select></label>
           <label>PC-ja kryesore për gjetjen e momenteve<select id="setting-analysis-worker"><option value="">Ndaje analizën mes PC-ve</option></select></label>
         </div><p class="muted">PC-ja e zgjedhur gjen momentet dhe kontrollon cilësinë. PC-të e tjera bëjnë transkriptimin, titrat, renderimin dhe korrigjimet. Nëse një rol shkëputet, puna kalon te PC-të e disponueshme.</p><p id="routing-status" role="status" class="muted"></p>
+<div class="editing-panel" id="editing-controls">
+  <div class="section-title"><div><p class="eyebrow">PAMJA E VIDEOVE</p><h2>Titra dhe efekte</h2></div><button type="button" id="apply-social-style" class="secondary">Përdor stilin Social</button></div>
+  <p class="muted">Përdoret për renderimet e reja. Titrat ndjekin kohët e transkriptit dhe rregullat e fushatës.</p>
+  <div class="edit-preview" aria-label="Shembull i pamjes së titrave"><span class="preview-label">SHEMBULL STILI</span><div>Një moment që <strong>ia vlen.</strong></div><i></i></div>
+  <div class="settings-grid">
+    <label>Ngjyra e fjalës aktive<select id="edit-color"><option value="classic">Klasike</option><option value="yellow">E verdhë</option><option value="lime">Lime</option><option value="cyan">Cyan</option></select></label>
+    <label>Madhësia e titrave<select id="edit-size"><option value="normal">Normale</option><option value="large">Të mëdha</option></select></label>
+    <label>Pozita e titrave<select id="edit-position"><option value="lower">Poshtë, brenda zonës së sigurt</option><option value="middle">Më lart në video</option></select></label>
+    <label>Animacioni i titrave<select id="edit-motion"><option value="none">Pa animacion</option><option value="pop">Pop i lehtë</option></select></label>
+  </div><div class="editing-toggles"><label class="checkbox-row"><input id="edit-enhance" type="checkbox"> Përmirësim i lehtë i ngjyrave dhe kontrastit</label><label class="checkbox-row"><input id="edit-progress" type="checkbox"> Shirit i hollë progresi në fund të videos</label></div>
+  <p id="edit-worker-status" class="muted" role="status"></p>
+</div>
         <label class="checkbox-row"><input id="setting-publish" type="checkbox"> Aktivizo publikimin automatik në YouTube dhe Instagram</label><p class="muted">Kërkon llogari të lidhura. Synimi i klipeve nuk ul pragun e cilësisë. Rrite kuotën vetëm pasi projekti YouTube ta ketë marrë kapacitetin.</p><button class="primary" type="submit">Ruaj konfigurimin</button></form>
         <div class="settings-card" id="automatic-feeds">
           <div class="section-title"><h2>Marrja automatike nga Kick</h2><button id="add-feed" class="secondary">+ Shto kanale</button></div>

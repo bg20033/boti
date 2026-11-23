@@ -522,6 +522,8 @@ class Pipeline:
                 "segment_id": asset["id"],
                 "profile": profile,
                 "caption_style": settings.caption_style,
+                "editing": settings.editing.model_dump(),
+                "render_revision": settings.editing.required_revision,
             }
             inputs = [asset["id"]]
             if overlay_rules:

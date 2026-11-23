@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field, field_validator
 from boti import __version__
 from boti.ai import LocalAI, transcribe
 from boti.media import available_encoder, dependencies, render, sha256
+from boti.styles import RENDER_REVISION
 
 log = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ def inspect_hardware(config: WorkerConfig, probe_ai=False) -> dict:
     tools = dependencies()
     hardware = {
         "boti_version": __version__,
+        "render_revision": RENDER_REVISION,
         "os": platform.platform(),
         "cpu_count": psutil.cpu_count(),
         "ram_gb": round(psutil.virtual_memory().total / 1024**3, 1),

@@ -376,13 +376,12 @@ class Store:
                 "SELECT id FROM tasks WHERE worker_id=? AND status='running'", (worker_id,)
             ).fetchone():
                 return None
-            capabilities = sorted(
-                eligible_capabilities(
-                    db.execute("SELECT id,capabilities,last_seen,paused FROM workers").fetchall(),
-                    settings.analysis_worker_id,
-                    now,
-                ).get(worker_id, set())
-            )
+            workers = db.execute("SELECT id,capabilities,hardware,last_seen,paused FROM workers").fetchall()
+            legacy = eligible_capabilities(workers, settings.analysis_worker_id, now)[worker_id]
+            modern = eligible_capabilities(workers, settings.analysis_worker_id, now, render_revision=1)[
+                worker_id
+            ]
+            capabilities = sorted(legacy | modern)
             if not capabilities:
                 return None
             marks = ",".join("?" for _ in capabilities)
@@ -390,11 +389,22 @@ class Store:
                 f"""SELECT t.* FROM tasks t JOIN jobs j ON j.id=t.job_id
                 WHERE t.status='queued' AND t.not_before<=? AND t.attempts<3
                 AND j.status='processing' AND t.kind IN ({marks})
+                AND (t.kind!='render' OR
+                    (coalesce(json_extract(t.payload,'$.render_revision'),0)=0 AND ?) OR
+                    (coalesce(json_extract(t.payload,'$.render_revision'),0)=1 AND ?))
                 ORDER BY CASE WHEN t.created<? THEN 0 ELSE 1 END,
                 CASE WHEN t.created<? THEN t.created ELSE 0 END,
                 CASE t.kind WHEN 'quality' THEN -1 WHEN 'repair' THEN -1 WHEN 'render' THEN 0 WHEN 'analyze' THEN 1 ELSE 2 END,
                 CASE WHEN t.preferred_worker=? THEN 0 ELSE 1 END,t.created LIMIT 1""",
-                (now, *capabilities, now - 1800, now - 1800, worker_id),
+                (
+                    now,
+                    *capabilities,
+                    "render" in legacy,
+                    "render" in modern,
+                    now - 1800,
+                    now - 1800,
+                    worker_id,
+                ),
             ).fetchone()
             if not row:
                 return None
@@ -480,7 +490,10 @@ class Store:
 
     def snapshot(self):
         workers = self.all("SELECT id,name,capabilities,hardware,last_seen,paused FROM workers ORDER BY id")
-        eligible = eligible_capabilities(workers, self.settings().analysis_worker_id)
+        settings = self.settings()
+        eligible = eligible_capabilities(
+            workers, settings.analysis_worker_id, render_revision=settings.editing.required_revision
+        )
         for worker in workers:
             worker["capabilities"] = json.loads(worker["capabilities"])
             worker["assigned_capabilities"] = sorted(eligible[worker["id"]])
@@ -533,9 +546,10 @@ class Store:
     def stage_metrics(self):
         now = time.time()
         eligible = eligible_capabilities(
-            self.all("SELECT id,capabilities,last_seen,paused FROM workers"),
+            self.all("SELECT id,capabilities,hardware,last_seen,paused FROM workers"),
             self.settings().analysis_worker_id,
             now,
+            render_revision=self.settings().editing.required_revision,
         )
         result = []
         for kind in ("transcribe", "analyze", "render", "quality", "repair"):

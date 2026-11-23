@@ -74,7 +74,7 @@ def main():
         page.locator(".quality-hold").wait_for(state="detached")
         page.locator('.nav-item[data-view="accounts"]').click()
         assert page.locator(".account-group").count() >= 12
-        page.locator("[data-connect][data-platform=instagram]").first.click()
+        page.locator("[data-setup-connect][data-platform=instagram]").click()
         page.locator("#connect-token").wait_for(state="visible")
         page.locator("#close-dialog").click()
         page.locator('.nav-item[data-view="dashboard"]').click()

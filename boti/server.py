@@ -582,6 +582,11 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
                 )
                 if not asset:
                     raise ValueError("Dorëzo së pari videon e verifikuar")
+                from boti.styles import EditStyle, render_revision
+
+                expected_style = EditStyle.model_validate(payload.get("editing") or {}).model_dump()
+                if render_revision(payload) and body.result.get("editing") != expected_style:
+                    raise ValueError("Workeri nuk konfirmoi stilin e kërkuar; përditëso dhe rinise worker-in")
                 # Overlay evidence is what the worker's own renderer reports; the compliance check
                 # compares it with the campaign rules, so only the expected shape is kept.
                 reported = body.result.get("overlays")
@@ -589,6 +594,7 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
                 result = {
                     "asset_id": asset["id"],
                     "layout": str(body.result.get("layout", ""))[:30],
+                    "editing": expected_style,
                     "overlays": {
                         "captions": bool(reported.get("captions", True)),
                         "watermark": str(reported.get("watermark", ""))[:40],

@@ -147,6 +147,14 @@ Në Windows pa përdorues të kyçur, Ollama duhet të jetë duke punuar që ana
 
 ## 4. Lidh llogaritë
 
+Te **Llogaritë**, zgjidh grupin dhe përdor kartelat TikTok, Instagram dhe YouTube: secila ka linkun për krijimin e llogarisë dhe hapat për lidhjen me Botin. Llogaritë krijohen në shërbimet përkatëse. Hyrja në Botin lokal bëhet me çelësin e main-it.
+
+Për clipping.net, te **Accounts → Link account** shto handle/linkun e të njëjtës llogari dhe kategorinë e saj. Vendose kodin e verifikimit në bio; te YouTube përdoret përshkrimi i kanalit. Përfundo **Check my bio** derisa të shfaqet Verified. Pastaj publiko klipin dhe ngjite linkun e postimit te fushata → Submit clip. Boti përgatit videot dhe regjistron linket; verifikimi dhe dorëzimi përfundohen në clipping.net. Shih [llogaritë](https://clipping.net/docs/clippers/accounts) dhe [dorëzimin](https://clipping.net/docs/clippers/posting) në dokumentacionin zyrtar.
+
+Te **Konfigurimi → Titra dhe efekte**, stili Social vendos titra të mëdhenj me fjalën aktive të verdhë, pop të lehtë, përmirësim të butë ngjyrash dhe shirit progresi. Ngjyra, madhësia, pozita dhe efektet mund të ndryshohen veçmas. Shtyp **Ruaj konfigurimin**; zbatohen në renderimet e reja. Rregullat e fushatës për titrat, logo dhe watermark ruhen.
+
+Efektet e reja kërkojnë worker 0.10.0: pas `git pull --ff-only origin main` dhe `uv sync --locked --extra worker`, rinise agjentin (ose shërbimin systemd). Ai raporton `render_revision: 1`. Main-i nuk ua jep këto renderime workerave të vjetër dhe verifikon stilin e raportuar në dorëzim. Kur vetëm main-local është përditësuar, ai i renderon përkohësisht videot me efektet e reja; transkriptimi dhe korrigjimet vazhdojnë në workerat e tjerë.
+
 ### YouTube
 
 Në Google Cloud aktivizo YouTube Data API v3 dhe krijo OAuth Client të tipit **Desktop app**, me projektin dhe ekranin e consent-it të konfiguruar për përdoruesit përkatës. Ruaje JSON-in privatisht si `oauth-client.json`. Në main:

@@ -261,9 +261,17 @@ _ANCHOR = {"top_left": 7, "top": 8, "top_right": 9, "bottom_left": 1, "bottom": 
 _MARK_TOP, _MARK_BOTTOM, _MARK_SIDE = 150, 230, 60
 
 
-def captions_ass(segments: list[dict], destination: Path, length: float, style="plain", overlays=None):
+def captions_ass(
+    segments: list[dict], destination: Path, length: float, style="plain", overlays=None, editing=None
+):
     """Spoken captions plus the campaign's burned-in text: watermark for the whole clip, hook at the start."""
     overlays = overlays or {}
+    from boti.styles import ACCENTS, EditStyle
+
+    editing = EditStyle.model_validate(editing or {})
+    base_font = 70 if editing.caption_size == "large" else 62
+    margin = 650 if editing.caption_position == "middle" else 340
+    accent = ACCENTS[editing.caption_color]
     header = """[Script Info]
 ScriptType: v4.00+
 PlayResX: 1080
@@ -277,7 +285,17 @@ Style: Hook,Arial,70,&H00FFFFFF,&H00FFFFFF,&H00131620,&HA0000000,-1,0,0,0,100,10
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
+    header = header.replace("Default,Arial,62,", f"Default,Arial,{base_font},").replace(
+        ",95,95,340,1", f",95,95,{margin},1"
+    )
     lines = [header]
+    if editing.progress_bar:
+        lines.append(
+            f"Dialogue: 0,{_ass_time(0)},{_ass_time(length)},Default,,0,0,0,,"
+            + rf"{{\an7\pos(0,1904)\p1\bord0\shad0\1c&H{accent}&"
+            + rf"\clip(0,1904,0,1912)\t(0,{round(length * 1000)},\clip(0,1904,1080,1912))}}"
+            + "m 0 0 l 1080 0 1080 8 0 8\n"
+        )
     mark = clean_text(overlays.get("watermark_text") or "")
     if mark:
         position = overlays.get("watermark_position") or "top_right"
@@ -297,22 +315,25 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     for group in caption_phrases(segments, length) if overlays.get("captions", True) else []:
         rows = caption_lines(group)
         longest = max(text_width(" ".join(group[i]["word"] for i in row)) for row in rows)
-        font = min(62, max(12, int(62 * 26 / max(26, longest))))
+        font = min(base_font, max(12, int(base_font * 26 / max(26, longest))))
 
         def emit(start, end, active=None):
             if _ass_time(start) == _ass_time(end):
                 return
             text = r"\N".join(
                 " ".join(
-                    (r"{\c&H66E8FF&}" + group[i]["word"] + r"{\c&HFFFFFF&}")
+                    (rf"{{\c&H{accent}&}}" + group[i]["word"] + r"{\c&HFFFFFF&}")
                     if i == active
                     else group[i]["word"]
                     for i in row
                 )
                 for row in rows
             )
-            if font != 62:
+            if font != base_font:
                 text = rf"{{\fs{font}}}" + text
+            if editing.caption_motion == "pop":
+                # Small scale change only; word start/end and the transcript stay unchanged.
+                text = r"{\fscx96\fscy96\t(0,100,\fscx100\fscy100)}" + text
             lines.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Default,,0,0,0,,{text}\n")
 
         if style == "highlight" and all(word["timed"] for word in group):
@@ -450,6 +471,9 @@ def render(
     length = payload["end"] - payload["start"]
     subtitles = work / "captions.ass"
     rules = payload.get("rules") or {}
+    from boti.styles import EditStyle
+
+    editing = EditStyle.model_validate(payload.get("editing") or {})
     overlays = {
         "captions": rules.get("captions", True),
         "watermark_text": rules.get("watermark_text", ""),
@@ -460,7 +484,12 @@ def render(
         # Never deliver a campaign clip silently missing its required logo.
         raise ValueError("Logoja e fushatës mungon ose nuk përputhet me rregullat")
     captions_ass(
-        payload.get("segments", []), subtitles, length, payload.get("caption_style", "highlight"), overlays
+        payload.get("segments", []),
+        subtitles,
+        length,
+        payload.get("caption_style", "highlight"),
+        overlays,
+        editing.model_dump(),
     )
     audio_filter, audio_report = loudness_filter(source, length)
     info = probe(source)
@@ -499,6 +528,10 @@ def render(
             "crop=1080:1920,boxblur=24:2[back];"
             "[fg]scale=1080:1920:force_original_aspect_ratio=decrease[front];"
             "[back][front]overlay=(W-w)/2:(H-h)/2[layout];"
+        )
+    if editing.color_enhance:
+        graph = "[0:v]eq=contrast=1.025:saturation=1.06:brightness=0.003[graded];" + graph.replace(
+            "[0:v]", "[graded]", 1
         )
     if rules.get("logo_sha256"):
         # Bounded size keeps the logo out of the caption area whatever its aspect ratio.
@@ -564,6 +597,7 @@ def render(
         "layout": layout,
         "encoder": encoder,
         "audio": audio_report,
+        "editing": editing.model_dump(),
         # Evidence for the compliance check: exactly which campaign overlays are burned into these bytes.
         "overlays": {
             "captions": bool(overlays["captions"]),

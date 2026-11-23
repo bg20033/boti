@@ -8,6 +8,8 @@ from pathlib import Path
 from cryptography.fernet import Fernet
 from pydantic import BaseModel, Field
 
+from boti.styles import EditStyle
+
 
 def private_write(path: Path, content: str | bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -35,6 +37,7 @@ class Settings(BaseModel):
     max_prepared_tasks: int = Field(default=8, ge=1, le=100)
     caption_style: str = Field(default="highlight", pattern="^(highlight|plain)$")
     analysis_worker_id: str | None = Field(default=None, min_length=1, max_length=100)
+    editing: EditStyle = Field(default_factory=EditStyle)
 
 
 class Config:
