@@ -12,9 +12,10 @@ import time
 import zipfile
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
 import httpx
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -611,13 +612,39 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
         return {"ok": True}
 
     @app.get("/api/clips", dependencies=[Depends(admin)])
-    def clips(limit: int = 50, offset: int = 0):
+    def clips(
+        limit: int = 50,
+        offset: int = 0,
+        state: Literal["all", "ready", "review", "skipped", "processing"] = "all",
+        q: str = Query(default="", max_length=200),
+    ):
         if not 1 <= limit <= 200 or offset < 0:
             raise HTTPException(422)
+        states = {
+            "ready": ("ready", "archived"),
+            "review": ("checking", "correcting", "approved"),
+            "skipped": ("skipped", "technical_failed"),
+            "processing": ("preparing", "rendering"),
+        }
+        conditions, parameters = [], []
+        if state != "all":
+            conditions.append("c.status IN (" + ",".join("?" for _ in states[state]) + ")")
+            parameters.extend(states[state])
+        if q.strip():
+            search = "%" + q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+            conditions.append(
+                "(json_extract(c.metadata,'$.title') LIKE ? ESCAPE '\\' OR g.name LIKE ? ESCAPE '\\')"
+            )
+            parameters.extend((search, search))
+        where = " AND ".join(conditions) or "1=1"
+        total = store.one(
+            f"SELECT count(*) n FROM clips c JOIN groups g ON g.id=c.group_id WHERE {where}", parameters
+        )["n"]
         result = store.all(
-            """SELECT c.*,j.run_mode,g.name group_name,r.passed review_passed,r.notes review_notes FROM clips c JOIN jobs j ON j.id=c.job_id JOIN groups g ON g.id=c.group_id
-                            LEFT JOIN reviews r ON r.clip_id=c.id ORDER BY c.created DESC LIMIT ? OFFSET ?""",
-            (limit, offset),
+            f"""SELECT c.*,j.run_mode,j.provider,g.name group_name,r.passed review_passed,r.notes review_notes
+                FROM clips c JOIN jobs j ON j.id=c.job_id JOIN groups g ON g.id=c.group_id
+                LEFT JOIN reviews r ON r.clip_id=c.id WHERE {where} ORDER BY c.created DESC,c.id DESC LIMIT ? OFFSET ?""",
+            (*parameters, limit, offset),
         )
         from boti.campaigns import clip_compliance
         from boti.pipeline import caption
@@ -625,6 +652,10 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
 
         for item in result:
             item["metadata"] = json.loads(item["metadata"])
+            asset = store.one("SELECT path FROM assets WHERE id=?", (item["asset_id"],))
+            item["video_url"] = (
+                f"/api/clips/{item['id']}/video" if asset and config.path(asset["path"]).exists() else None
+            )
             linked = store.one("SELECT rules_snapshot FROM job_campaigns WHERE job_id=?", (item["job_id"],))
             # What will actually be posted, and whether this version meets the campaign's clip rules.
             item["compliance"] = clip_compliance(store, item)
@@ -652,7 +683,7 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
             for publication in item["publications"]:
                 if publication["status"] == "queued" and publication["account_status"] != "connected":
                     publication["display_status"] = "awaiting_connection"
-        return {"clips": result}
+        return {"clips": result, "total": total, "limit": limit, "offset": offset}
 
     @app.get("/api/clips/{clip_id}/video", dependencies=[Depends(admin)])
     def clip_video(clip_id: str):

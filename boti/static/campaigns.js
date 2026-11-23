@@ -61,7 +61,6 @@ $('sub-prev').onclick=()=>{submissionOffset=Math.max(0,submissionOffset-50);load
 $('sub-next').onclick=()=>{submissionOffset+=50;loadSubmissions();};
 $('job-campaign').onchange=()=>{const c=campaignRows.find(c=>c.id===$('job-campaign').value);$('job-note').textContent=`Automatik · Kontroll cilësie · Një korrigjim · ${c?clipSummary(c.data.clip):'20–60s'}`;document.querySelectorAll('#target-groups input').forEach(input=>{input.checked=c?c.data.group_ids.includes(input.value):true;});$('target-groups').dispatchEvent(new Event('change'));};
 document.addEventListener('click',async e=>{const d=e.target.closest('button')?.dataset;if(!d)return;try{
-  if(d.view==='campaigns'){await loadCampaigns();await loadSubmissions();}
   if(d.editCampaign)campaignForm(d.editCampaign);
   if(d.campaignReview){await api(`/api/jobs/${d.campaignReview}/campaign-review`,{method:'POST'});notify('Rregullat u rikonfirmuan. Rishiko klipet para publikimit.');}
   if(d.copySub){await navigator.clipboard.writeText(submissionRows.find(s=>s.id===d.copySub).url);notify('URL-ja u kopjua');}

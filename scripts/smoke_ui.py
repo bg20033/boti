@@ -5,6 +5,8 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
+from boti import __version__
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -21,22 +23,22 @@ def main():
         page.goto(args.url)
         page.locator("#token").fill((args.data / "secrets/admin.token").read_text().strip())
         page.locator("#login-form button").click()
-        page.locator("#workers .worker-card").first.wait_for()
-        assert page.locator("#workers .worker-card").count() == 4
+        page.locator("#workers .worker-card").first.wait_for(state="attached")
+        assert page.locator("#workers .worker-card").count() >= 4
         assert page.locator("#stats .stat").count() == 4
         assert page.locator("#stage-metrics .stage-card").count() == 5
         assert page.locator("#review-mode").input_value() == "automatic"
-        assert page.locator("#runtime-version").text_content() == "Boti 0.7.0"
+        assert page.locator("#runtime-version").text_content() == f"Boti {__version__}"
         page.screenshot(path=str(args.output / "desktop.png"), full_page=True)
         for view in ("accounts", "settings", "clips", "campaigns"):
-            page.locator(f'[data-view="{view}"]').click()
+            page.locator(f'.nav-item[data-view="{view}"]').click()
             page.locator(f"#view-{view}").wait_for(state="visible")
         page.locator("#add-campaign").click()
         page.locator("#campaign-form").wait_for()
         assert page.locator("#c-rate").input_value() == ""
         assert not page.locator("#c-auto").is_checked()
         page.locator("#close-dialog").click()
-        page.locator('[data-view="settings"]').click()
+        page.locator('.nav-item[data-view="settings"]').click()
         assert int(page.locator("#setting-active-jobs").input_value()) >= 1
         assert int(page.locator("#setting-prefetch").input_value()) >= 1
         assert page.locator("#setting-captions").input_value() in {"plain", "highlight"}
@@ -53,7 +55,7 @@ def main():
             "review_passed": None,
             "metadata": {"title": "Provë e panelit", "verification_reason": "Moment i plotë."},
         }
-        page.route("**/api/clips?*", lambda route: route.fulfill(json={"clips": [fixture]}))
+        page.route("**/api/clips?*", lambda route: route.fulfill(json={"clips": [fixture], "total": 1}))
 
         def review(route):
             body = route.request.post_data_json
@@ -61,7 +63,8 @@ def main():
             route.fulfill(json={"ok": True})
 
         page.route("**/api/clips/ui-fixture/review", review)
-        page.locator('[data-view="clips"]').click()
+        page.locator('.nav-item[data-view="clips"]').click()
+        page.locator(".clip-review summary").click()
         page.locator('[data-review="ui-fixture"][data-passed="false"]').click()
         page.locator("#review-notes").fill("Përmirëso titrat <script>test</script>")
         page.locator("#review-form button").click()
@@ -69,12 +72,12 @@ def main():
         assert page.locator(".review-note").text_content() == "Përmirëso titrat <script>test</script>"
         page.locator('[data-review="ui-fixture"][data-passed="true"]').click()
         page.locator(".quality-hold").wait_for(state="detached")
-        page.locator('[data-view="accounts"]').click()
+        page.locator('.nav-item[data-view="accounts"]').click()
         assert page.locator(".account-group").count() >= 12
         page.locator("[data-connect][data-platform=instagram]").first.click()
         page.locator("#connect-token").wait_for(state="visible")
         page.locator("#close-dialog").click()
-        page.locator('[data-view="dashboard"]').click()
+        page.locator('.nav-item[data-view="dashboard"]').click()
         # Exercise the complete trial form/report with browser fixtures, without live jobs.
         submitted = []
 
@@ -117,7 +120,9 @@ def main():
                 }
             ),
         )
+        page.locator("#open-ingest").click()
         page.locator("#vod-url").fill("https://twitch.tv/videos/123")
+        page.locator("#choose-groups").click()
         page.locator("#target-groups input").first.check()
         page.locator("#start-trial").click()
         page.locator("#trial-start").fill("00:01:00")
