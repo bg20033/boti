@@ -127,10 +127,19 @@ def file_identity(path: Path) -> str:
             digest.update(block)
         after = os.fstat(handle.fileno())
 
-    def signature(s):
+    def open_signature(s):
         return (s.st_dev, s.st_ino, s.st_size, s.st_mtime_ns, s.st_ctime_ns)
 
-    if signature(before) != signature(after) or signature(after) != signature(path.stat()):
+    # On Windows, closing a newly-created file can adjust st_ctime_ns by a
+    # filesystem clock tick even though its contents and modification time did
+    # not change. Keep ctime in the open-handle check, where it is reliable,
+    # but use stable identity/size/mtime fields for the post-close path check.
+    def closed_signature(s):
+        return (s.st_dev, s.st_ino, s.st_size, s.st_mtime_ns)
+
+    if open_signature(before) != open_signature(after) or closed_signature(after) != closed_signature(
+        path.stat()
+    ):
         raise ValueError("Skedari ndryshoi gjatë leximit; përfundo kopjimin dhe provo përsëri")
     return "sha256:" + digest.hexdigest()
 

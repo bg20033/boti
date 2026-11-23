@@ -133,6 +133,7 @@ def caption_alignment(expected, observed):
 
 
 def check_rendered(ai, path, payload, work, config=None):
+    from boti.editing import caption_phrases
     from boti.media import loudness_filter, storyboard, validate_output
     from boti.rules import clip_rules
 
@@ -167,6 +168,22 @@ def check_rendered(ai, path, payload, work, config=None):
     technical_passed = timing_ok and audio_ok and alignment["passed"]
     board = work / "final-review.jpg"
     storyboard(path, board, 0, length, portrait=True)
+    selected_clip = {
+        key: value
+        for key, value in payload["metadata"].items()
+        if key not in {"source_context", "source_duration"}
+    }
+    phrases = caption_phrases(segments, length) if limits.captions else []
+    frame_captions = []
+    for index in range(6):
+        second = length * (index + 0.5) / 6
+        text = " ".join(
+            word["word"]
+            for phrase in phrases
+            if phrase[0]["start"] <= second < phrase[-1]["end"]
+            for word in phrase
+        )
+        frame_captions.append({"seconds": round(second, 3), "expected_caption": text})
     try:
         verdict = Verdict.model_validate(
             ai.chat(
@@ -176,16 +193,31 @@ def check_rendered(ai, path, payload, work, config=None):
                 "obscured gameplay and campaign editorial mismatches. Uncertainty means reject. Preserve source meaning.",
                 "Assess these chronological frames of the actual output, original timed transcript, technical measurements "
                 "and campaign editorial requirements. Score hook, payoff, clarity and composition 0-100. "
+                "The images are sparse timestamped samples, not continuous playback. Compare visible captions only "
+                "with speech active at the timestamp of that frame. A phrase absent from the sampled images is not "
+                "evidence that it was omitted from the video. The caption_alignment measurements compare captions "
+                "against the full final audio; use them alongside the sampled visual evidence. For any rejection, "
+                "describe the specific visible defect and its frame timestamp, or the measured technical failure. "
+                "The expected_caption for each frame is the phrase displayed at that instant. The renderer "
+                "intentionally splits speech into short phrases of up to two lines; compare each sampled caption "
+                "to that frame's expected_caption, not to an entire transcript sentence. "
+                "Frame timestamps, caption times and detected speech times are all relative to the exported clip, "
+                "starting at zero. The clip metadata start/end are source-video offsets, not caption offsets. "
+                "Caption word timing is measured against the full final audio by caption_alignment; still images "
+                "cannot establish audio synchronization. Review the visual readability and obstruction of captions. "
+                "Assess story completeness from the selected clip transcript. The full recording can continue "
+                "after a complete selected moment; its continuation alone does not establish a truncated story. "
                 "Select one repair: layout (full frame), captions (retranscribe the original audio), boundaries "
                 "(align to original sentence boundaries), or none. Do not invent dialogue.\n"
                 + encode(
                     {
-                        "clip": payload["metadata"],
+                        "clip": selected_clip,
                         "campaign_rules": payload["rules"].get("rules", ""),
                         "campaign_clip_requirements": limits.model_dump(
                             include={"min_seconds", "max_seconds", "captions", "banned_words", "language"}
                         ),
                         "technical": technical,
+                        "sampled_frame_captions": frame_captions,
                         "speech_detected_in_final_video": observed,
                     }
                 ),

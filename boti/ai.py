@@ -3,14 +3,18 @@ from __future__ import annotations
 import base64
 import gc
 import json
+import logging
 import math
 from pathlib import Path
 
 import httpx
+from pydantic import ValidationError
 
 from boti.editing import refine_boundaries
 from boti.media import energy_peaks, scene_changes, storyboard
 from boti.models import AnalysisResult, Candidate, Transcript, within
+
+log = logging.getLogger(__name__)
 
 
 def transcribe(path: Path, model_name="medium", device="cpu", language=None, vocabulary="") -> dict:
@@ -133,13 +137,42 @@ class LocalAI:
             f"Only include scores >= {threshold}. A loud sound or scene change alone is not a good clip. "
             "Use talk, gaming, or mixed for content_type. Hashtags are at most 5 relevant words. "
             "The title is a short on-screen hook in the clip's own language, taken from what is said or shown."
+            f" The end field is the absolute end timestamp, and end - start must be between {shortest} "
+            f"and {longest} seconds. Return an empty candidates list when no complete moment meets that range."
             f"{brief}\n"
             f"Transcript:\n{json.dumps(text, ensure_ascii=False)}\nLocal cues:\n{json.dumps(cues)}"
         )
         try:
-            result = AnalysisResult.model_validate(
-                self.chat(system, prompt, AnalysisResult.model_json_schema(), [board])
-            )
+            schema = AnalysisResult.model_json_schema()
+            raw = self.chat(system, prompt, schema, [board])
+            for attempt in range(2):
+                if not isinstance(raw, dict) or not isinstance(raw.get("candidates"), list):
+                    result = AnalysisResult.model_validate(raw)
+                    break
+                candidates, errors = [], []
+                for item in raw["candidates"][:16]:
+                    try:
+                        candidate = Candidate.model_validate(item)
+                        if not within(candidate.model_dump(), limits) or candidate.end > length + 0.1:
+                            raise ValueError("Candidate is outside the requested duration or recording")
+                        candidates.append(candidate)
+                    except (ValidationError, ValueError) as exc:
+                        errors.append(str(exc))
+                if candidates or not errors or attempt == 1:
+                    result = AnalysisResult(candidates=candidates)
+                    if errors:
+                        log.warning("U anashkaluan %d kandidatë me kohë të pavlefshme", len(errors))
+                    break
+                raw = self.chat(
+                    system,
+                    prompt
+                    + "\nYour previous candidates had invalid timestamps: "
+                    + json.dumps(raw, ensure_ascii=False)
+                    + f"\nCorrect them using the source evidence. Each duration must be {shortest}–{longest} "
+                    "seconds. Do not pad a short event with dead air. Return zero candidates if none qualify.",
+                    schema,
+                    [board],
+                )
             verified = []
             for original in sorted(result.candidates, key=lambda c: (-c.score, c.start)):
                 if original.score < threshold:

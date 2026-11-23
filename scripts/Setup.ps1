@@ -51,6 +51,13 @@ if ($Role -eq "Main") {
 $Identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 if (Test-Path -PathType Container $PrivatePath) {
     & icacls $PrivatePath /inheritance:r /grant:r "$($Identity):(OI)(CI)F" /T | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Nuk u kufizua qasja te dosja private." }
+    # Existing files do not always receive the inheritable directory ACE on
+    # Windows. Give the current account an explicit file ACE as well.
+    Get-ChildItem -LiteralPath $PrivatePath -Recurse -Force -File | ForEach-Object {
+        & icacls $_.FullName /inheritance:r /grant:r "$($Identity):F" | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Nuk u kufizua qasja te $($_.FullName)." }
+    }
 } else {
     & icacls $PrivatePath /inheritance:r /grant:r "$($Identity):F" | Out-Null
 }

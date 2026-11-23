@@ -142,6 +142,34 @@ def test_ai_rechecks_overlapping_candidates_before_dedup(monkeypatch, tmp_path):
     assert result["candidates"][0]["verification_reason"] == "Complete payoff"
 
 
+@pytest.mark.parametrize("valid_first", [False, True])
+def test_ai_recovers_invalid_candidate_durations(monkeypatch, tmp_path, valid_first):
+    monkeypatch.setattr("boti.ai.storyboard", lambda _, dest, *args: dest.write_bytes(b"fixture"))
+    monkeypatch.setattr("boti.ai.energy_peaks", lambda _: [])
+    monkeypatch.setattr("boti.ai.scene_changes", lambda _: [])
+    proposals = []
+    valid = {"start": 10, "end": 40, "score": 90, "title": "Complete moment"}
+    invalid = {"start": 10, "end": 12, "score": 90, "title": "Too short"}
+
+    def transport(request):
+        if request.url.path.endswith("generate"):
+            return httpx.Response(200, json={})
+        body = json.loads(request.content)
+        if "candidates" in body["format"]["properties"]:
+            proposals.append(body)
+            items = [invalid, valid] if valid_first else [invalid]
+            result = {"candidates": items if len(proposals) == 1 else [valid]}
+        else:
+            result = {"approved": True, "score": 90, "reason": "Complete story"}
+        return httpx.Response(200, json={"message": {"content": json.dumps(result)}})
+
+    result = LocalAI(client=httpx.Client(transport=httpx.MockTransport(transport))).analyze(
+        Path("audio"), Path("proxy"), {"segments": []}, 60, tmp_path
+    )
+    assert [item["title"] for item in result["candidates"]] == ["Complete moment"]
+    assert len(proposals) == (1 if valid_first else 2)
+
+
 def test_loudness_silence_is_not_passed_as_infinity_to_ffmpeg(monkeypatch):
     result = {
         "input_i": "-inf",
