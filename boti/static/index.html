@@ -4,7 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light"><title>Boti · Studio e klipeve</title>
   <link rel="stylesheet" href="/static/style.css"><script src="/static/app.js" defer></script>
-<script src="/static/campaigns.js" defer></script><script src="/static/trials.js" defer></script></head>
+<script src="/static/campaigns.js" defer></script><script src="/static/trials.js" defer></script><script src="/static/feeds.js" defer></script></head>
 <body>
   <div id="login" class="login-wrap" hidden>
     <form id="login-form" class="login-card">
@@ -64,6 +64,11 @@
           <label>Detyra të përgatitura për fazë<input id="setting-prefetch" type="number" min="1" max="100" required></label>
           <label>Titrat<select id="setting-captions"><option value="highlight">Thekso fjalën që po thuhet</option><option value="plain">Titra të thjeshtë</option></select></label>
         </div><label class="checkbox-row"><input id="setting-publish" type="checkbox"> Aktivizo publikimin automatik në YouTube dhe Instagram</label><p class="muted">Kërkon llogari të lidhura. Synimi i klipeve nuk ul pragun e cilësisë. Rrite kuotën vetëm pasi projekti YouTube ta ketë marrë kapacitetin.</p><button class="primary" type="submit">Ruaj konfigurimin</button></form>
+        <div class="settings-card">
+          <div class="section-title"><h2>Marrja automatike nga Kick</h2><button id="add-feed" class="secondary">+ Shto kanale</button></div>
+          <p class="muted">Main-i kontrollon kanalet periodikisht dhe mbush radhën sapo lirohet kapaciteti. Merr vetëm VOD-e të përfunduara. Pezullimi i përgjithshëm dhe kufiri i diskut vlejnë edhe këtu.</p>
+          <div id="feed-list" class="feed-list"></div>
+        </div>
         <form id="source-form" class="settings-card"><h2>Profili i një streameri</h2><p class="muted">ID-ja e burimit shfaqet te hollësitë e videos pasi shkarkohet.</p><div class="settings-grid"><label>ID-ja e burimit<input id="source-id" required></label><label>Paraqitja<select id="source-mode"><option value="auto">Automatike</option><option value="talk">Bisedë</option><option value="gaming">Gaming</option></select></label><label>Gjuha e të folurit<input id="source-language" maxlength="3" pattern="[a-z]{2,3}" placeholder="Auto · sq për shqip, en për anglisht"></label><label>Emra dhe terma që përsëriten<input id="source-vocabulary" maxlength="500" placeholder="Emri i streamerit, emra lojërash…"></label></div><p class="muted">Gjuha dhe termat përdoren për videot e reja. Lëre gjuhën bosh për zbulim automatik.</p><p>Pozita e kamerës, opsionale: vlera 0–1 në raport me videon.</p><div class="camera-grid"><label>X<input id="camera-x" type="number" min="0" max="1" step="0.001"></label><label>Y<input id="camera-y" type="number" min="0" max="1" step="0.001"></label><label>Gjerësia<input id="camera-w" type="number" min="0.001" max="1" step="0.001"></label><label>Lartësia<input id="camera-h" type="number" min="0.001" max="1" step="0.001"></label></div><button class="secondary" type="submit">Ruaj profilin e burimit</button><div id="source-list"></div></form>
         <div class="settings-card"><h2>Kontrolli i main-it</h2><pre id="doctor">Duke kontrolluar…</pre><p class="muted">Agjentët kontrollohen në kartelat e PC-ve. Cilësia dhe kapaciteti 24-orësh maten me videon reale.</p></div>
       </section>

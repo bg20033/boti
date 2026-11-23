@@ -108,11 +108,13 @@ CREATE INDEX IF NOT EXISTS assets_job ON assets(job_id);
 class Store:
     def __init__(self, config: Config):
         from boti.campaigns import SCHEMA as CAMPAIGN_SCHEMA
+        from boti.feeds import SCHEMA as FEED_SCHEMA
 
         self.config = config
         with self.connect() as db:
             db.executescript(SCHEMA)
             db.executescript(CAMPAIGN_SCHEMA)
+            db.executescript(FEED_SCHEMA)
             db.execute("INSERT OR IGNORE INTO settings VALUES ('config', ?)", (Settings().model_dump_json(),))
             from boti.quality import migrate
 

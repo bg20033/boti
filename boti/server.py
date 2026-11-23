@@ -121,6 +121,9 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
             lock.acquire()
             pipeline = Pipeline(store)
             publisher = Publisher(store)
+            from boti.feeds import FeedWatcher
+
+            feeds = FeedWatcher(store)
 
             async def loop(action, interval):
                 while not stop.is_set():
@@ -138,6 +141,7 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
                 asyncio.create_task(loop(pipeline.ingest_next, 2)),
                 asyncio.create_task(loop(publisher.tick, 1)),
                 asyncio.create_task(loop(pipeline.cleanup, 3600)),
+                asyncio.create_task(loop(feeds.tick, 5)),
             ]
         try:
             yield
@@ -179,6 +183,9 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
     from boti.campaigns import routes
 
     app.include_router(routes(store, admin))
+    from boti.feeds import routes as feed_routes
+
+    app.include_router(feed_routes(store, admin))
 
     def worker(request: Request):
         authorization = request.headers.get("authorization", "")
@@ -227,6 +234,9 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
     @app.get("/api/snapshot", dependencies=[Depends(admin)])
     def snapshot():
         result = store.snapshot()
+        from boti.feeds import list_feeds
+
+        result["feeds"] = list_feeds(store)
         for publication in result["publications"]:
             publication.pop("state", None)
             metadata = json.loads(publication["metadata"])

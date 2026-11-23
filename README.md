@@ -6,6 +6,12 @@ Main + katër agjentë për të kthyer video të gjata (Kick, Twitch, YouTube os
 
 ## Çfarë është ndërtuar
 
+Versioni **0.8** shton marrjen automatike të VOD-eve nga kanalet Kick. Te **Konfigurimi → Marrja automatike nga Kick → Shto kanale**, ngjit emrat e kanaleve, një për rresht, dhe cakto grupet/fushatën. Main-i kontrollon kanalet çdo 5 minuta dhe mbush radhën sapo lirohet kapaciteti. Mund të përfshish deri 50 VOD-et ekzistuese që kthen lista e kanalit në kontrollin e parë ose të ndjekësh vetëm videot e reja.
+
+Historia e zbulimit ruhet në SQLite. Një restart ose shkëputje e rrjetit e vazhdon radhën e ruajtur; videoja ekzistuese deduplikohet nga pipeline-i. Radha automatike fillimisht mban deri dy video aktive/në pritje gjithsej. Pezullimi i përgjithshëm, grupet/fushatat e pezulluara dhe kufiri i diskut respektohen. Linket live/private dhe videot ende në përpunim anashkalohen.
+
+Zgjidh **VOD i plotë** për punë normale ose **Provë me segment** për përpunim të kufizuar pa publikim. Krijimi i klipeve varet nga përzgjedhja dhe kontrolli i cilësisë. Kur mungon material i përshtatshëm ose hapësira në disk, radha pret. Ndjekja e kanaleve dhe kufiri i radhës menaxhohen nga paneli. **Hiq ndjekjen** ruan punët dhe videot që janë shtuar tashmë.
+
 Versioni **0.7** shton **“Provoje këtë VOD”**:
 
 - Zgjedh 30 sekonda deri 15 minuta nga videoja dhe maksimumi 3–5 kandidatë. Përzgjedhja, editimi dhe kontrolli përdorin agjentët ekzistues; numri final varet nga cilësia.
@@ -197,6 +203,19 @@ Për përditësim: ndali agjentët dhe main-in në një moment të lirë, kopjo 
 Ruaje kopjen rezervë të `data/boti.sqlite3` bashkë me `data/secrets`. Për kopjim të thjeshtë ndale main-in fillimisht; përfshi `data/media` dhe `data/exports` nëse do të rikthesh edhe videot në pritje. Humbja e `vault.key` e bën të pamundur dekriptimin e kredencialeve të ruajtura. Mos i fut këto skedarë në Git.
 
 ## 6. Nisja me Windows
+
+### Linux Mint / Ubuntu — worker-i si shërbim
+
+Nga folderi i repo-s në secilin Mint, ndale procesin e vjetër të worker-it, pastaj:
+
+```bash
+git pull --ff-only origin main
+uv sync --locked --extra worker
+uv run --no-sync boti doctor --config ~/worker-1.json --probe-ai
+uv run --no-sync python scripts/install_worker_service.py --config ~/worker-1.json --at-boot
+```
+
+Përdor konfigurimin përkatës për secilin PC dhe rrugën reale ku e ke ruajtur. Instaluesi krijon shërbimin e përdoruesit `boti-worker-pc-1.service`, e nis menjëherë dhe e rinis pas ndërprerjes së procesit. Opsioni `--at-boot` kërkon fjalëkalimin lokal për `sudo loginctl enable-linger`, që shërbimi të punojë edhe pa login. Ollama duhet të jetë aktiv në atë PC. Log-et shihen me `journalctl --user -u boti-worker-pc-1.service -f`. Pas përditësimeve, rinise me `systemctl --user restart boti-worker-pc-1.service`.
 
 Pasi roli punon nga terminali, në PowerShell me të drejta për Task Scheduler:
 

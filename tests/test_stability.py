@@ -3,6 +3,7 @@ import time
 
 import pytest
 
+from boti import __version__
 from boti.pipeline import Pipeline
 from boti.rules import ClipRules, source_allowed
 from boti.sources import file_identity, legacy_file_identity, reconcile_file_identity
@@ -154,7 +155,7 @@ def test_runtime_readiness_uses_only_live_unpaused_workers(client, store, admin_
     def snapshot():
         return client.get("/api/snapshot", headers=admin_headers).json()
 
-    assert snapshot()["version"] == "0.7.0"
+    assert snapshot()["version"] == __version__
     assert not snapshot()["readiness"]["workers_ready"]
     store.heartbeat("pc-1", ["transcribe", "analyze", "render", "quality", "repair"])
     assert snapshot()["readiness"]["workers_ready"]
