@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from boti.config import Config, Settings, private_write
+from boti.routing import eligible_capabilities
 
 
 def uid() -> str:
@@ -375,7 +376,13 @@ class Store:
                 "SELECT id FROM tasks WHERE worker_id=? AND status='running'", (worker_id,)
             ).fetchone():
                 return None
-            capabilities = json.loads(worker["capabilities"])
+            capabilities = sorted(
+                eligible_capabilities(
+                    db.execute("SELECT id,capabilities,last_seen,paused FROM workers").fetchall(),
+                    settings.analysis_worker_id,
+                    now,
+                ).get(worker_id, set())
+            )
             if not capabilities:
                 return None
             marks = ",".join("?" for _ in capabilities)
@@ -473,8 +480,10 @@ class Store:
 
     def snapshot(self):
         workers = self.all("SELECT id,name,capabilities,hardware,last_seen,paused FROM workers ORDER BY id")
+        eligible = eligible_capabilities(workers, self.settings().analysis_worker_id)
         for worker in workers:
             worker["capabilities"] = json.loads(worker["capabilities"])
+            worker["assigned_capabilities"] = sorted(eligible[worker["id"]])
             worker["hardware"] = json.loads(worker["hardware"])
             worker["task"] = self.one(
                 "SELECT id,kind,job_id,started FROM tasks WHERE worker_id=? AND status='running'",
@@ -523,6 +532,11 @@ class Store:
 
     def stage_metrics(self):
         now = time.time()
+        eligible = eligible_capabilities(
+            self.all("SELECT id,capabilities,last_seen,paused FROM workers"),
+            self.settings().analysis_worker_id,
+            now,
+        )
         result = []
         for kind in ("transcribe", "analyze", "render", "quality", "repair"):
             queue = self.one(
@@ -540,11 +554,7 @@ class Store:
                 WHERE kind=? AND status='complete' AND finished>? AND started IS NOT NULL""",
                 (kind, now - 86400),
             )
-            capable = self.one(
-                """SELECT count(*) n FROM workers w WHERE w.paused=0 AND w.last_seen>?
-                AND EXISTS (SELECT 1 FROM json_each(w.capabilities) WHERE value=?)""",
-                (now - 30, kind),
-            )["n"]
+            capable = sum(kind in caps for caps in eligible.values())
             result.append(
                 {
                     "kind": kind,

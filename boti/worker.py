@@ -13,6 +13,7 @@ import httpx
 import psutil
 from pydantic import BaseModel, Field, field_validator
 
+from boti import __version__
 from boti.ai import LocalAI, transcribe
 from boti.media import available_encoder, dependencies, render, sha256
 
@@ -51,6 +52,7 @@ class WorkerConfig(BaseModel):
 def inspect_hardware(config: WorkerConfig, probe_ai=False) -> dict:
     tools = dependencies()
     hardware = {
+        "boti_version": __version__,
         "os": platform.platform(),
         "cpu_count": psutil.cpu_count(),
         "ram_gb": round(psutil.virtual_memory().total / 1024**3, 1),

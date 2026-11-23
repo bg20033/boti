@@ -256,7 +256,7 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
             cap
             for worker in result["workers"]
             if not worker["paused"] and (worker["last_seen"] or 0) > time.time() - 30
-            for cap in worker["capabilities"]
+            for cap in worker["assigned_capabilities"]
         }
         missing = sorted({"transcribe", "analyze", "render", "quality", "repair"} - capable)
         result["readiness"] = {"missing_capabilities": missing, "workers_ready": not missing}
@@ -268,6 +268,10 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
             raise HTTPException(422, "Mbivendosja duhet të jetë më e shkurtër se segmenti")
         if not re.fullmatch(r"v\d+\.0", body.instagram_api_version):
             raise HTTPException(422, "Versioni Meta duhet të ketë formën v24.0")
+        if body.analysis_worker_id and not store.one(
+            "SELECT id FROM workers WHERE id=?", (body.analysis_worker_id,)
+        ):
+            raise HTTPException(422, "PC-ja e analizës nuk ekziston")
         store.save_settings(body)
         return body
 

@@ -90,6 +90,10 @@ uv run boti serve --host 0.0.0.0 --port 8765
 
 Hap [panelin lokal](http://localhost:8765). Hyr me përmbajtjen e `data/secrets/admin.token`. Main-i krijon katër konfigurime private: `data/secrets/worker-1.json` deri `worker-4.json`.
 
+Për ndarjen main → gjetje momentesh, worker → përpunim, nise edhe agjentin lokal në main me identitetin e veçantë `main-local` (`uv run python scripts/setup_local_worker.py`, pastaj `uv run boti worker --config data/secrets/worker-local.json`). Te **Konfigurimi → PC-ja kryesore për gjetjen e momenteve**, zgjidh `main-local` dhe ruaj. Ai merr analizën e momenteve dhe kontrollin e cilësisë; workerat e lidhur marrin transkriptimin me kohët e fjalëve, renderimin me titra dhe korrigjimet. Main-i shkarkon dhe përgatit segmentet për ta. Ndarja zbatohet nga radha e main-it edhe kur konfigurimet e workerave lejojnë të gjitha aftësitë.
+
+Nëse main-local nuk jep heartbeat për 30 sekonda, është pezulluar ose i mungon aftësia, analiza kalon te workerat e disponueshëm. Nëse nuk ka worker të lidhur për transkriptim/renderim/korrigjim, main-local i merr edhe ato role. Detyrat tashmë aktive përfundojnë në PC-në që i mori; rikthimi i një PC-je ndryshon vetëm caktimet e reja. Paneli shfaq rolet e caktuara dhe numrin real të PC-ve për çdo fazë. Zgjedhja “Ndaje analizën mes PC-ve” rikthen radhën e përbashkët.
+
 Jep rregullin e Windows Firewall vetëm për rrjetin privat dhe subnet-in lokal, në PowerShell si administrator:
 
 ```powershell

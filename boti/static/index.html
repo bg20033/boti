@@ -63,7 +63,9 @@
           <label>Video të gjata në përpunim njëkohësisht<input id="setting-active-jobs" type="number" min="1" max="20" required></label>
           <label>Detyra të përgatitura për fazë<input id="setting-prefetch" type="number" min="1" max="100" required></label>
           <label>Titrat<select id="setting-captions"><option value="highlight">Thekso fjalën që po thuhet</option><option value="plain">Titra të thjeshtë</option></select></label>
-        </div><label class="checkbox-row"><input id="setting-publish" type="checkbox"> Aktivizo publikimin automatik në YouTube dhe Instagram</label><p class="muted">Kërkon llogari të lidhura. Synimi i klipeve nuk ul pragun e cilësisë. Rrite kuotën vetëm pasi projekti YouTube ta ketë marrë kapacitetin.</p><button class="primary" type="submit">Ruaj konfigurimin</button></form>
+          <label>PC-ja kryesore për gjetjen e momenteve<select id="setting-analysis-worker"><option value="">Ndaje analizën mes PC-ve</option></select></label>
+        </div><p class="muted">PC-ja e zgjedhur gjen momentet dhe kontrollon cilësinë. PC-të e tjera bëjnë transkriptimin, titrat, renderimin dhe korrigjimet. Nëse një rol shkëputet, puna kalon te PC-të e disponueshme.</p><p id="routing-status" role="status" class="muted"></p>
+        <label class="checkbox-row"><input id="setting-publish" type="checkbox"> Aktivizo publikimin automatik në YouTube dhe Instagram</label><p class="muted">Kërkon llogari të lidhura. Synimi i klipeve nuk ul pragun e cilësisë. Rrite kuotën vetëm pasi projekti YouTube ta ketë marrë kapacitetin.</p><button class="primary" type="submit">Ruaj konfigurimin</button></form>
         <div class="settings-card">
           <div class="section-title"><h2>Marrja automatike nga Kick</h2><button id="add-feed" class="secondary">+ Shto kanale</button></div>
           <p class="muted">Main-i kontrollon kanalet periodikisht dhe mbush radhën sapo lirohet kapaciteti. Merr vetëm VOD-e të përfunduara. Pezullimi i përgjithshëm dhe kufiri i diskut vlejnë edhe këtu.</p>
