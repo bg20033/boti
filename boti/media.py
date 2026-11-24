@@ -586,7 +586,7 @@ def render(
     graph = "[0:v]fps=30[timed];" + graph.replace("[0:v]", "[timed]", 1)
     if editing.vignette == "soft":
         # One static lens map per render; keep captions/logos crisp above the effect.
-        graph += "[layout]vignette=angle=PI/7:eval=init:dither=0[finished];"
+        graph += "[layout]setsar=1,vignette=angle=PI/4.5:aspect=9/16:eval=init:dither=0[finished];"
     else:
         graph += "[layout]null[finished];"
     if rules.get("logo_sha256"):

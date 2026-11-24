@@ -70,6 +70,8 @@ def test_actual_soft_finish_preserves_center_and_burns_captions_above_vignette(t
     assert abs(brightness((540, 900), before) - brightness((540, 900), after)) < 5
     ratio = brightness((24, 24), after) / brightness((24, 24), before)
     assert 0.45 < ratio < 0.70  # Darker corners with a smooth falloff, never an opaque frame.
+    for point in ((540, 24), (540, 1896), (24, 960), (1056, 960)):
+        assert 0.60 < brightness(point, after) / brightness(point, before) < 0.85
     area = after.crop((100, 1400, 980, 1700))
     assert (
         max(min(area.getpixel((x, y))) for x in range(0, area.width, 4) for y in range(0, area.height, 4))

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "boti-studio"
-version = "0.16.1"
+version = "0.16.2"
 description = "Local campaign clipping coordinator and Windows workers for Kick, Twitch, YouTube and local files"
 requires-python = ">=3.12,<3.15"
 dependencies = [
