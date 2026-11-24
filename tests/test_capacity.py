@@ -73,6 +73,14 @@ def test_capacity_uses_measured_cost_and_keeps_deleted_clips_as_historical_sampl
                 (task, clip, 1, asset["id"], asset["sha256"], "fixture", 0, 1, encode({}), now),
             )
     result = estimate(store)
-    assert result["main_seconds_per_clip"] == 120
+    assert result["bottleneck_seconds_per_clip"] == 120
     assert (result["processed_low"], result["processed_high"]) == (360, 540)
     assert result["quality_scenarios"][0] == {"acceptance_percent": 25, "ready_low": 90, "ready_high": 135}
+    render = store.add_task(job, "render", "slow-worker", {})
+    store.execute(
+        "UPDATE tasks SET status='complete',worker_id='pc-2',started=?,finished=? WHERE id=?",
+        (now - 300, now, render),
+    )
+    result = estimate(store)
+    assert result["bottleneck_worker"] == "pc-2"
+    assert (result["processed_low"], result["processed_high"]) == (144, 216)
