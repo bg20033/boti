@@ -63,7 +63,7 @@ function clipCard(clip, compact = false) {
     ${clip.quality_reason || reports.length ? `<details class="quality-details"><summary>${["skipped", "technical_failed"].includes(clip.status) ? "Pse nuk kaloi kontrollin?" : "Kontrolli i cilësisë"}</summary>${clip.quality_reason ? `<p class="review-note">${esc(clip.quality_reason)}</p>` : ""}${reports.map(report => `<p>v${report.version} · ${report.passed ? "Kaloi" : "Nuk kaloi"}: ${esc((report.result.verdict?.reasons || []).join("; "))}</p>`).join("")}</details>` : ""}
     ${clip.review_notes ? `<p class="review-note">${esc(clip.review_notes)}</p>` : ""}
     ${clip.metadata.verification_reason ? `<details class="selection-reason"><summary>Pse u zgjodh ky moment?</summary><p>${esc(clip.metadata.verification_reason)}</p></details>` : ""}
-    <div class="clip-actions">${safeVideoUrl(clip) ? `<a class="secondary" href="${esc(safeVideoUrl(clip))}" download="boti-${esc(clip.id)}.mp4">↓ Video MP4</a>` : ""}<button class="secondary" data-caption="${esc(clip.id)}">Përshkrimi</button>${clip.status === "ready" && clip.run_mode !== "trial" ? `<a class="secondary" href="/api/clips/${esc(clip.id)}/tiktok.zip">Paketa TikTok ↓</a>` : ""}</div>
+    <div class="clip-actions">${safeVideoUrl(clip) ? `<a class="secondary" href="${esc(safeVideoUrl(clip))}" download="boti-${esc(clip.id)}.mp4">↓ Video MP4</a>` : ""}<button class="secondary" data-caption="${esc(clip.id)}">Përshkrimi</button>${clip.can_edit_title?`<button class="secondary" data-title-edit="${esc(clip.id)}">Titull sipër</button>`:""}${clip.status === "ready" && clip.run_mode !== "trial" ? `<a class="secondary" href="/api/clips/${esc(clip.id)}/tiktok.zip">Paketa TikTok ↓</a>` : ""}</div>
     <details class="clip-review"><summary>Vlerëso klipin</summary><p class="muted">Vlerësimi yt ruhet veçmas nga kontrolli automatik.</p><div class="clip-actions"><button class="secondary" data-review="${esc(clip.id)}" data-passed="true">${clip.review_passed === 1 ? "✓ " : ""}Në rregull</button><button class="secondary" data-review="${esc(clip.id)}" data-passed="false">Përmirëso</button></div></details>
     ${(clip.publications || []).length ? `<details class="publication-details"><summary>Publikimet</summary><div class="platforms">${clip.publications.map(p => `<div class="platform-line"><span>${platformNames[p.platform]}</span>${p.url ? `<a href="${safeHref(p.url)}" target="_blank" rel="noopener noreferrer">Hap postimin ↗</a>` : badge(p.display_status || p.status)}${p.platform === "tiktok" && p.status === "manual_ready" ? `<button class="text-button" data-published="${esc(p.id)}">E publikova</button>` : ""}${["needs_reconciliation", "failed"].includes(p.status) ? `<button class="text-button" data-resolve="${esc(p.id)}">Verifiko</button>` : ""}</div>`).join("")}</div></details>` : ""}
     </div></article>`;
@@ -171,6 +171,22 @@ document.addEventListener("click", event => {
     clipFilter = button.dataset.clipFilter; clipOffset = 0;
     document.querySelectorAll("[data-clip-filter]").forEach(item => { const active = item === button; item.classList.toggle("active", active); item.setAttribute("aria-pressed", String(active)); });
     loadClips();
+  }
+  if (button.dataset.titleEdit) {
+    const clip = clips.find(item=>item.id===button.dataset.titleEdit);
+    if (clip) {
+      dialog(`<h2>Titulli sipër videos</h2><p class="title-edit-note">Ndrysho titullin e këtij klipi. Krijohet version i ri me renderim dhe kontroll të ri cilësie.</p><form id="clip-title-form"><label>Teksti i titullit<textarea id="clip-title-text" rows="3" maxlength="120" required>${esc(clip.metadata.top_title_override || clip.metadata.title)}</textarea></label><p class="muted">Madhësia, sfondi dhe kohëzgjatja merren nga Konfigurimi → Titra dhe efekte.</p><button class="primary" type="submit">Ruaj dhe riedito</button></form>`);
+      $("clip-title-form").onsubmit=async event=>{
+        event.preventDefault();
+        const submit=event.target.querySelector("button"); submit.disabled=true;
+        try {
+          await api(`/api/clips/${encodeURIComponent(clip.id)}/title`,{method:"POST",body:{text:$("clip-title-text").value,expected_version:clip.current_version}});
+          $("dialog").close(); librarySignature=""; recentChecked=0; await loadClips(); await refresh();
+          notify("Titulli u ruajt; klipi po rieditohet.");
+        } catch(error){notify(error.message,true);}
+        finally{submit.disabled=false;}
+      };
+    }
   }
   if (button.dataset.openClip) {
     const clip = recentClips.find(item => item.id === button.dataset.openClip);

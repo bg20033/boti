@@ -1,8 +1,8 @@
 "use strict";
 
-const defaultEditing = {caption_color:"classic",caption_size:"normal",caption_position:"lower",caption_motion:"none",color_enhance:false,progress_bar:false};
-const socialEditing = {caption_color:"yellow",caption_size:"large",caption_position:"lower",caption_motion:"pop",color_enhance:true,progress_bar:true};
-const editingFields = {"edit-color":"caption_color","edit-size":"caption_size","edit-position":"caption_position","edit-motion":"caption_motion","edit-enhance":"color_enhance","edit-progress":"progress_bar"};
+const defaultEditing = {caption_color:"classic",caption_size:"normal",caption_position:"lower",caption_motion:"none",color_enhance:false,progress_bar:false,title_enabled:false,title_text:"",title_size:"normal",title_appearance:"box",title_seconds:4,title_full:false};
+const socialEditing = {...defaultEditing,caption_color:"yellow",caption_size:"large",caption_position:"lower",caption_motion:"pop",color_enhance:true,progress_bar:true,title_enabled:true};
+const editingFields = {"edit-color":"caption_color","edit-size":"caption_size","edit-position":"caption_position","edit-motion":"caption_motion","edit-enhance":"color_enhance","edit-progress":"progress_bar","edit-title-enabled":"title_enabled","edit-title-text":"title_text","edit-title-size":"title_size","edit-title-appearance":"title_appearance","edit-title-seconds":"title_seconds","edit-title-full":"title_full"};
 
 function loadEditingControls(value) {
   const editing = {...defaultEditing,...value};
@@ -11,7 +11,7 @@ function loadEditingControls(value) {
 }
 
 function readEditingControls() {
-  return Object.fromEntries(Object.entries(editingFields).map(([id,key]) => [key,$(id).type === "checkbox" ? $(id).checked : $(id).value]));
+  return Object.fromEntries(Object.entries(editingFields).map(([id,key]) => [key,$(id).type === "checkbox" ? $(id).checked : $(id).type === "number" ? Number($(id).value) : $(id).value]));
 }
 
 function previewEditing() {
@@ -22,12 +22,19 @@ function previewEditing() {
   preview.classList.toggle("caption-middle", style.caption_position === "middle");
   preview.classList.toggle("caption-pop", style.caption_motion === "pop");
   preview.classList.toggle("has-progress", style.progress_bar);
+  $("edit-title-preview").hidden = !style.title_enabled;
+  $("edit-title-preview").textContent = style.title_text.trim() || "Momenti më i mirë";
+  preview.classList.toggle("has-title", style.title_enabled);
+  preview.classList.toggle("title-outline", style.title_appearance === "outline");
+  preview.classList.toggle("title-large", style.title_size === "large");
+  $("edit-title-seconds").disabled = style.title_full;
 }
 
 function renderEditReadiness(s) {
   const workers = s.workers.filter(w => !w.paused && s.server_time - (w.last_seen || 0) < 30 && w.capabilities.includes("render"));
-  const modern = workers.filter(w => w.hardware.render_revision >= 1);
-  const old = workers.filter(w => !(w.hardware.render_revision >= 1));
+  const revision = s.settings.editing?.title_enabled ? 2 : 1;
+  const modern = workers.filter(w => w.hardware.render_revision >= revision);
+  const old = workers.filter(w => !(w.hardware.render_revision >= revision));
   $("edit-worker-status").textContent = `${modern.length} PC ${modern.length === 1 ? "mbështet" : "mbështesin"} efektet e reja.${old.length ? " Përditëso dhe rinis: " + old.map(w=>w.name).join(", ") + "." : ""} Punët me efekte merren vetëm nga një worker që i mbështet.`;
 }
 

@@ -514,16 +514,20 @@ class Pipeline:
                 cut_segment(source, target, clip["start"], clip["end"] - clip["start"])
             asset = self.store.add_asset(job["id"], target)
             group = self.store.one("SELECT * FROM groups WHERE id=?", (clip["group_id"],))
+            clip_metadata = json.loads(clip["metadata"])
+            editing = settings.editing
+            if clip_metadata.get("top_title_override"):
+                editing = editing.model_copy(update={"title_enabled": True, "title_text": ""})
             payload = {
-                **json.loads(clip["metadata"]),
+                **clip_metadata,
                 "clip_id": clip["id"],
                 "version": clip["current_version"],
                 "group_id": clip["group_id"],
                 "segment_id": asset["id"],
                 "profile": profile,
                 "caption_style": settings.caption_style,
-                "editing": settings.editing.model_dump(),
-                "render_revision": settings.editing.required_revision,
+                "editing": editing.render_options(),
+                "render_revision": editing.required_revision,
             }
             inputs = [asset["id"]]
             if overlay_rules:

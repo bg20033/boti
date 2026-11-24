@@ -187,6 +187,9 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
     from boti.feeds import routes as feed_routes
 
     app.include_router(feed_routes(store, admin))
+    from boti.clip_edits import routes as edit_routes
+
+    app.include_router(edit_routes(store, admin))
 
     def worker(request: Request):
         authorization = request.headers.get("authorization", "")
@@ -584,7 +587,7 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
                     raise ValueError("Dorëzo së pari videon e verifikuar")
                 from boti.styles import EditStyle, render_revision
 
-                expected_style = EditStyle.model_validate(payload.get("editing") or {}).model_dump()
+                expected_style = EditStyle.model_validate(payload.get("editing") or {}).render_options()
                 if render_revision(payload) and body.result.get("editing") != expected_style:
                     raise ValueError("Workeri nuk konfirmoi stilin e kërkuar; përditëso dhe rinise worker-in")
                 # Overlay evidence is what the worker's own renderer reports; the compliance check
@@ -685,6 +688,14 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
                 """SELECT p.id,p.platform,p.status,p.url,p.error,a.status account_status FROM publications p
                 JOIN accounts a ON a.id=p.account_id WHERE p.clip_id=?""",
                 (item["id"],),
+            )
+            job = store.one("SELECT metadata,review_mode FROM jobs WHERE id=?", (item["job_id"],))
+            source = json.loads(job["metadata"]).get("source")
+            item["can_edit_title"] = bool(
+                job["review_mode"] == "automatic"
+                and not item["publications"]
+                and source
+                and config.path(source).is_file()
             )
             for publication in item["publications"]:
                 if publication["status"] == "queued" and publication["account_status"] != "connected":

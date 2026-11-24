@@ -381,7 +381,10 @@ class Store:
             modern = eligible_capabilities(workers, settings.analysis_worker_id, now, render_revision=1)[
                 worker_id
             ]
-            capabilities = sorted(legacy | modern)
+            titled = eligible_capabilities(workers, settings.analysis_worker_id, now, render_revision=2)[
+                worker_id
+            ]
+            capabilities = sorted(legacy | modern | titled)
             if not capabilities:
                 return None
             marks = ",".join("?" for _ in capabilities)
@@ -391,7 +394,8 @@ class Store:
                 AND j.status='processing' AND t.kind IN ({marks})
                 AND (t.kind!='render' OR
                     (coalesce(json_extract(t.payload,'$.render_revision'),0)=0 AND ?) OR
-                    (coalesce(json_extract(t.payload,'$.render_revision'),0)=1 AND ?))
+                    (coalesce(json_extract(t.payload,'$.render_revision'),0)=1 AND ?) OR
+                    (coalesce(json_extract(t.payload,'$.render_revision'),0)=2 AND ?))
                 ORDER BY CASE WHEN t.created<? THEN 0 ELSE 1 END,
                 CASE WHEN t.created<? THEN t.created ELSE 0 END,
                 CASE t.kind WHEN 'quality' THEN -1 WHEN 'repair' THEN -1 WHEN 'render' THEN 0 WHEN 'analyze' THEN 1 ELSE 2 END,
@@ -401,6 +405,7 @@ class Store:
                     *capabilities,
                     "render" in legacy,
                     "render" in modern,
+                    "render" in titled,
                     now - 1800,
                     now - 1800,
                     worker_id,

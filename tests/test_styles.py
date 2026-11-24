@@ -26,12 +26,12 @@ def test_animated_captions_keep_word_timing_and_campaign_caption_switch(tmp_path
         caption_motion="pop",
         progress_bar=True,
     )
-    captions_ass([{"words": words}], path, 6, "highlight", editing=editing.model_dump())
+    captions_ass([{"words": words}], path, 6, "highlight", editing=editing.render_options())
     text = path.read_text(encoding="utf-8-sig")
     assert "Default,Arial,70," in text and ",95,95,650,1" in text
     assert r"\c&H99EFD5&" in text and r"\t(0,100,\fscx100\fscy100)" in text
     assert ",0:00:00.20,0:00:00.80," in text and ",0:00:01.10,0:00:01.80," in text
-    captions_ass([{"words": words}], path, 6, "highlight", {"captions": False}, editing.model_dump())
+    captions_ass([{"words": words}], path, 6, "highlight", {"captions": False}, editing.render_options())
     text = path.read_text(encoding="utf-8-sig")
     assert "Hello" not in text and "world" not in text
 
@@ -68,7 +68,7 @@ def test_upgrading_remote_restores_render_offload(style_queue):
 
 def test_unrecognised_render_revision_stays_queued(style_queue):
     store, job = style_queue
-    store.add_task(job, "render", "future", {"render_revision": 2})
+    store.add_task(job, "render", "future", {"render_revision": 99})
     assert store.claim("pc-1") is None and store.claim("pc-2") is None
 
 
@@ -76,7 +76,7 @@ def test_new_render_requires_worker_to_report_requested_style(style_queue, clien
     store, job = style_queue
     # worker_headers refreshes legacy hardware; advertise the upgraded renderer again.
     store.heartbeat("pc-2", ["render"], {"render_revision": 1})
-    style = EditStyle(caption_color="yellow", caption_motion="pop").model_dump()
+    style = EditStyle(caption_color="yellow", caption_motion="pop").render_options()
     task_id = store.add_task(job, "render", "new", {"render_revision": 1, "editing": style})
     task = store.claim("pc-2")
     path = store.config.root / "media" / "uploaded.mp4"
@@ -125,7 +125,7 @@ def test_actual_render_has_animated_progress_and_decodable_captions(tmp_path):
     )
     style = EditStyle(
         caption_color="yellow", caption_motion="pop", color_enhance=True, progress_bar=True
-    ).model_dump()
+    ).render_options()
     payload = {
         "start": 0,
         "end": 6,

@@ -153,6 +153,10 @@ Për clipping.net, te **Accounts → Link account** shto handle/linkun e të nj�
 
 Te **Konfigurimi → Titra dhe efekte**, stili Social vendos titra të mëdhenj me fjalën aktive të verdhë, pop të lehtë, përmirësim të butë ngjyrash dhe shirit progresi. Ngjyra, madhësia, pozita dhe efektet mund të ndryshohen veçmas. Shtyp **Ruaj konfigurimin**; zbatohen në renderimet e reja. Rregullat e fushatës për titrat, logo dhe watermark ruhen.
 
+**Titulli sipër videos (0.11):** aktivizoje te Titra dhe efekte. Boti përdor titullin e momentit; teksti i përbashkët është opsional. Zgjidh madhësi normale/të madhe, sfond të errët/kontur dhe 1–15 sekonda ose gjithë klipin. Titulli shfaqet në dy rreshta me hyrje/dalje të lehtë; titrat e të folurit ruajnë kohët e tyre. Kur ka logo/watermark, titulli vendoset më poshtë në zonën e sipërme.
+
+Te **Biblioteka → Titull sipër** mund t'ia ndryshosh tekstin vetëm një klipi. Kërkon origjinalin e ruajtur, kontroll automatik dhe asnjë publikim të krijuar për atë klip. Rieditimi krijon version të ri, ruan historinë dhe vlerësimin e vjetër te versioni përkatës dhe kërkon kontroll të ri cilësie. Titulli i postimit mbetet veçmas. Workerat 0.11 raportojnë `render_revision: 2`; workerat 0.10 vazhdojnë punët pa këto tituj. Për titujt përditëso dhe rinis workerat.
+
 Efektet e reja kërkojnë worker 0.10.0: pas `git pull --ff-only origin main` dhe `uv sync --locked --extra worker`, rinise agjentin (ose shërbimin systemd). Ai raporton `render_revision: 1`. Main-i nuk ua jep këto renderime workerave të vjetër dhe verifikon stilin e raportuar në dorëzim. Kur vetëm main-local është përditësuar, ai i renderon përkohësisht videot me efektet e reja; transkriptimi dhe korrigjimet vazhdojnë në workerat e tjerë.
 
 ### YouTube

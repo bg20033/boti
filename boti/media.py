@@ -288,6 +288,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     header = header.replace("Default,Arial,62,", f"Default,Arial,{base_font},").replace(
         ",95,95,340,1", f",95,95,{margin},1"
     )
+    if editing.title_enabled:
+        title_font = 82 if editing.title_size == "large" else 70
+        title_margin = overlays.get("title_margin", 270)
+        border = "3,14,0" if editing.title_appearance == "box" else "1,5,2"
+        header = header.replace(
+            "Hook,Arial,70,&H00FFFFFF,&H00FFFFFF,&H00131620,&HA0000000,-1,0,0,0,100,100,0,0,3,14,0,8,70,70,270,1",
+            f"Hook,Arial,{title_font},&H00FFFFFF,&H00FFFFFF,&H00131620,&HA0000000,-1,0,0,0,100,100,0,0,{border},8,95,95,{title_margin},1",
+        )
     lines = [header]
     if editing.progress_bar:
         lines.append(
@@ -304,11 +312,21 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             f"Dialogue: 1,{_ass_time(0)},{_ass_time(length)},Mark,,{_MARK_SIDE},{_MARK_SIDE},{margin},,"
             rf"{{\an{_ANCHOR.get(position, 9)}}}{mark}" + "\n"
         )
-    hook = wrap_title(overlays.get("hook") or "")
+    hook = wrap_title(overlays.get("hook") or "", width=22, rows=2 if editing.title_enabled else 3)
     if hook:
+        title_end = (
+            length
+            if editing.title_enabled and editing.title_full
+            else min(editing.title_seconds if editing.title_enabled else 3.5, length)
+        )
+        title_tags = r"{\fad(160,240)}" if editing.title_enabled else r"{\fad(0,250)}"
+        if editing.title_enabled:
+            longest = max(text_width(line) for line in hook)
+            font = min(title_font, max(12, int(title_font * 22 / max(22, longest))))
+            title_tags += rf"{{\fs{font}}}"
         lines.append(
-            f"Dialogue: 2,{_ass_time(0)},{_ass_time(min(3.5, length))},Hook,,0,0,0,,"
-            + r"{\fad(0,250)}"
+            f"Dialogue: 2,{_ass_time(0)},{_ass_time(title_end)},Hook,,0,0,0,,"
+            + title_tags
             + r"\N".join(hook)
             + "\n"
         )
@@ -471,14 +489,15 @@ def render(
     length = payload["end"] - payload["start"]
     subtitles = work / "captions.ass"
     rules = payload.get("rules") or {}
-    from boti.styles import EditStyle
+    from boti.styles import EditStyle, top_title
 
     editing = EditStyle.model_validate(payload.get("editing") or {})
     overlays = {
         "captions": rules.get("captions", True),
         "watermark_text": rules.get("watermark_text", ""),
         "watermark_position": rules.get("watermark_position", "top_right"),
-        "hook": payload.get("title", "") if rules.get("hook_title") else "",
+        "hook": top_title(payload),
+        "title_margin": 340 if rules.get("logo_sha256") or rules.get("watermark_text") else 270,
     }
     if rules.get("logo_sha256") and (logo is None or sha256(logo) != rules["logo_sha256"]):
         # Never deliver a campaign clip silently missing its required logo.
@@ -597,7 +616,7 @@ def render(
         "layout": layout,
         "encoder": encoder,
         "audio": audio_report,
-        "editing": editing.model_dump(),
+        "editing": editing.render_options(),
         # Evidence for the compliance check: exactly which campaign overlays are burned into these bytes.
         "overlays": {
             "captions": bool(overlays["captions"]),

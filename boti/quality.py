@@ -194,7 +194,8 @@ def check_rendered(ai, path, payload, work, config=None):
                 "Assess these chronological frames of the actual output, original timed transcript, technical measurements "
                 "and campaign editorial requirements. Score hook, payoff, clarity and composition 0-100. "
                 "The images are sparse timestamped samples, not continuous playback. Compare visible captions only "
-                "with speech active at the timestamp of that frame. A phrase absent from the sampled images is not "
+                "with speech active at the timestamp of that frame. The separate top_title is an editorial heading, "
+                "not a spoken caption: assess its meaning against the clip. A phrase absent from sampled images is not "
                 "evidence that it was omitted from the video. The caption_alignment measurements compare captions "
                 "against the full final audio; use them alongside the sampled visual evidence. For any rejection, "
                 "describe the specific visible defect and its frame timestamp, or the measured technical failure. "
@@ -212,6 +213,7 @@ def check_rendered(ai, path, payload, work, config=None):
                 + encode(
                     {
                         "clip": selected_clip,
+                        "top_title": payload.get("top_title", ""),
                         "campaign_rules": payload["rules"].get("rules", ""),
                         "campaign_clip_requirements": limits.model_dump(
                             include={"min_seconds", "max_seconds", "captions", "banned_words", "language"}
@@ -371,6 +373,13 @@ class AutomaticReview:
         ):
             if clip["status"] == "checking":
                 asset = store.one("SELECT * FROM assets WHERE id=?", (clip["asset_id"],))
+                from boti.styles import top_title
+
+                rendered = store.one(
+                    """SELECT t.payload FROM clip_versions v JOIN tasks t ON t.id=v.render_task_id
+                    WHERE v.clip_id=? AND v.version=?""",
+                    (clip["id"], clip["current_version"]),
+                )
                 payload = {
                     "clip_id": clip["id"],
                     "version": clip["current_version"],
@@ -381,6 +390,7 @@ class AutomaticReview:
                     "rules_revision": revision,
                     "rules": rules,
                     "threshold": store.settings().score_threshold,
+                    "top_title": top_title(json.loads(rendered["payload"])) if rendered else "",
                 }
                 key = f"{clip['id']}:v{clip['current_version']}:r{revision}:{payload['metadata_hash']}"
                 store.add_task(job["id"], "quality", key, payload, asset_ids=[asset["id"]])
