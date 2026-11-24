@@ -6,6 +6,8 @@ Main + katër agjentë për të kthyer video të gjata (Kick, Twitch, YouTube os
 
 ## Çfarë është ndërtuar
 
+Versioni **0.16** shton stilin **Pro të lehtë**: vignette e butë, sfond i turbullt pak më i errët dhe titull me kontur deri tri rreshta. Për sasi më të lartë, kontrolli i cilësisë mund të ndahet mes dy ose më shumë workerave modernë, ndërsa main-i mban analizën; renderimi heq kuadrot mbi 30 FPS para efekteve. Pragu i cilësisë ruhet. [Përditësimi dhe opsionet 0.16](docs/release-0.16.md). [Pastrimi, disku dhe llogaria ditore 0.15](docs/release-0.15.md).
+
 Versioni **0.13** shton **Llogaritë → Lidh profilin për publikim automatik** me Upload-Post, me verifikim të destinacioneve, kufij për llogari, privatësi të zgjedhur dhe konfirmim të rezultatit para shënimit “Publikuar”. TikTok drafts dhe rezultatet e paqarta kërkojnë verifikim; nuk ripostohen verbërisht. Nuk krijohet llogari, nuk blihet plan dhe nuk aktivizohet publikimi nga instalimi. [Udhëzimi 0.13](docs/release-0.13.md).
 
 MP4-të e reja ruhen në arkivin e PC-së që i editon. Main-i mban kopje të përkohshme për kontroll/shikim/upload dhe e heq pas kohës së cache-it vetëm kur arkivi është konfirmuar dhe videoja nuk është në përdorim nga një detyrë. Rikthimi bëhet nga workeri përmes lidhjes dalëse, me madhësi/SHA256 dhe token të përkohshëm; nuk duhet port i ri në Mint. **Duhet përditësuar edhe workeri**; videot e vjetra pa konfirmim arkivi nuk hiqen nga main-i.

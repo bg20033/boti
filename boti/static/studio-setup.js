@@ -1,8 +1,9 @@
 "use strict";
 
-const defaultEditing = {caption_color:"classic",caption_size:"normal",caption_position:"lower",caption_motion:"none",color_enhance:false,progress_bar:false,title_enabled:false,title_text:"",title_size:"normal",title_appearance:"box",title_seconds:4,title_full:false};
+const defaultEditing = {caption_color:"classic",caption_size:"normal",caption_position:"lower",caption_motion:"none",color_enhance:false,progress_bar:false,vignette:"off",background_dim:false,title_enabled:false,title_text:"",title_size:"normal",title_appearance:"box",title_seconds:4,title_full:false};
 const socialEditing = {...defaultEditing,caption_color:"yellow",caption_size:"large",caption_position:"lower",caption_motion:"pop",color_enhance:true,progress_bar:true,title_enabled:true};
-const editingFields = {"edit-color":"caption_color","edit-size":"caption_size","edit-position":"caption_position","edit-motion":"caption_motion","edit-enhance":"color_enhance","edit-progress":"progress_bar","edit-title-enabled":"title_enabled","edit-title-text":"title_text","edit-title-size":"title_size","edit-title-appearance":"title_appearance","edit-title-seconds":"title_seconds","edit-title-full":"title_full"};
+const proEditing = {...socialEditing,vignette:"soft",background_dim:true,title_size:"normal",title_appearance:"outline",title_seconds:4};
+const editingFields = {"edit-color":"caption_color","edit-size":"caption_size","edit-position":"caption_position","edit-motion":"caption_motion","edit-enhance":"color_enhance","edit-progress":"progress_bar","edit-vignette":"vignette","edit-background-dim":"background_dim","edit-title-enabled":"title_enabled","edit-title-text":"title_text","edit-title-size":"title_size","edit-title-appearance":"title_appearance","edit-title-seconds":"title_seconds","edit-title-full":"title_full"};
 
 function loadEditingControls(value) {
   const editing = {...defaultEditing,...value};
@@ -22,6 +23,8 @@ function previewEditing() {
   preview.classList.toggle("caption-middle", style.caption_position === "middle");
   preview.classList.toggle("caption-pop", style.caption_motion === "pop");
   preview.classList.toggle("has-progress", style.progress_bar);
+  preview.classList.toggle("has-vignette", style.vignette === "soft");
+  preview.classList.toggle("dim-background", style.background_dim);
   $("edit-title-preview").hidden = !style.title_enabled;
   $("edit-title-preview").textContent = style.title_text.trim() || "Momenti më i mirë";
   preview.classList.toggle("has-title", style.title_enabled);
@@ -32,7 +35,8 @@ function previewEditing() {
 
 function renderEditReadiness(s) {
   const workers = s.workers.filter(w => !w.paused && s.server_time - (w.last_seen || 0) < 30 && w.capabilities.includes("render"));
-  const revision = s.settings.editing?.title_enabled ? 2 : 1;
+  const editing = s.settings.editing || {};
+  const revision = editing.vignette === "soft" || editing.background_dim ? 3 : editing.title_enabled ? 2 : 1;
   const modern = workers.filter(w => w.hardware.render_revision >= revision);
   const old = workers.filter(w => !(w.hardware.render_revision >= revision));
   $("edit-worker-status").textContent = `${modern.length} PC ${modern.length === 1 ? "mbështet" : "mbështesin"} efektet e reja.${old.length ? " Përditëso dhe rinis: " + old.map(w=>w.name).join(", ") + "." : ""} Punët me efekte merren vetëm nga një worker që i mbështet.`;
@@ -76,6 +80,7 @@ function renderAccountSetup(s) {
 
 $("setup-group").onchange = () => { if (snapshot) renderAccountSetup(snapshot); };
 Object.keys(editingFields).forEach(id=>$(id).addEventListener("change",previewEditing));
+$("apply-pro-style").onclick = () => { $("setting-captions").value="highlight";loadEditingControls(proEditing);notify("Stili Pro i lehtë u zgjodh. Ruaje konfigurimin për klipet e reja."); };
 $("apply-social-style").onclick = () => { $("setting-captions").value="highlight";loadEditingControls(socialEditing);notify("Stili Social u zgjodh. Shtyp Ruaj konfigurimin për ta përdorur."); };
 document.addEventListener("click",event=>{
   const button=event.target.closest("[data-setup-connect]");

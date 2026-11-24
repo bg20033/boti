@@ -4,6 +4,44 @@ from boti.capacity import estimate
 from boti.db import encode, uid
 
 
+def test_parallel_quality_uses_two_modern_remote_workers_and_keeps_analysis_on_main(store):
+    settings = store.settings()
+    settings.analysis_worker_id = "pc-1"
+    settings.quality_worker_id = "pc-2"
+    settings.quality_parallel_workers = 2
+    store.save_settings(settings)
+    store.heartbeat("pc-1", ["analyze", "quality"], {"quality_revision": 1})
+    store.heartbeat("pc-2", ["quality", "render"], {"quality_revision": 1})
+    store.heartbeat("pc-3", ["quality", "render"], {"quality_revision": 1})
+    store.heartbeat("pc-4", ["quality"], {})
+    job, _ = store.create_job("https://twitch.tv/videos/123", "123", ["pc-1-g1"])
+    store.execute("UPDATE jobs SET status='processing' WHERE id=?", (job,))
+    q1 = store.add_task(job, "quality", "first", {})
+    q2 = store.add_task(job, "quality", "second", {})
+    analysis = store.add_task(job, "analyze", "moments", {})
+    assert store.claim("pc-2")["id"] == q1
+    assert store.claim("pc-3")["id"] == q2
+    assert store.claim("pc-4") is None
+    assert store.claim("pc-1")["id"] == analysis
+    store.heartbeat("pc-4", ["quality"], {"quality_revision": 1})
+    store.add_task(job, "quality", "third", {})
+    assert store.claim("pc-4") is None  # The selected two-worker pool remains bounded.
+
+
+def test_parallel_quality_falls_back_when_remote_workers_are_offline(store):
+    settings = store.settings()
+    settings.analysis_worker_id = "pc-1"
+    settings.quality_worker_id = "pc-2"
+    settings.quality_parallel_workers = 2
+    store.save_settings(settings)
+    store.heartbeat("pc-1", ["analyze", "quality"], {"quality_revision": 1})
+    store.heartbeat("pc-2", ["quality"], {})  # A legacy worker cannot use new checks.
+    job, _ = store.create_job("https://twitch.tv/videos/123", "123", ["pc-1-g1"])
+    store.execute("UPDATE jobs SET status='processing' WHERE id=?", (job,))
+    task = store.add_task(job, "quality", "fallback", {})
+    assert store.claim("pc-1")["id"] == task
+
+
 def test_empty_capacity_is_unknown_instead_of_promising_output(store):
     result = estimate(store)
     assert result["processed_low"] is None and result["quality_scenarios"] == []

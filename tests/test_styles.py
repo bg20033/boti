@@ -10,10 +10,15 @@ from boti.styles import EditStyle
 def test_styles_are_validated_and_default_keeps_legacy_rendering():
     assert EditStyle().required_revision == 0
     assert EditStyle(caption_motion="pop").required_revision == 1
+    assert EditStyle(vignette="soft").required_revision == 3
+    assert EditStyle(background_dim=True).required_revision == 3
+    assert "vignette" not in EditStyle(title_enabled=True).render_options()
     with pytest.raises(ValueError):
         EditStyle(caption_color="yellow;movie=private-file")
     with pytest.raises(ValueError):
         EditStyle(caption_motion="flash")
+    with pytest.raises(ValueError):
+        EditStyle(vignette="soft;movie=private-file")
 
 
 def test_animated_captions_keep_word_timing_and_campaign_caption_switch(tmp_path):
@@ -34,6 +39,16 @@ def test_animated_captions_keep_word_timing_and_campaign_caption_switch(tmp_path
     captions_ass([{"words": words}], path, 6, "highlight", {"captions": False}, editing.render_options())
     text = path.read_text(encoding="utf-8-sig")
     assert "Hello" not in text and "world" not in text
+
+
+def test_pro_title_keeps_full_headline_in_three_lines(tmp_path):
+    path = tmp_path / "captions.ass"
+    title = "He calls it a dead buy. Then he says he doesn't know what to say."
+    style = EditStyle(title_enabled=True, title_appearance="outline", vignette="soft")
+    captions_ass([], path, 20, overlays={"hook": title}, editing=style.render_options())
+    hook = next(line for line in path.read_text(encoding="utf-8-sig").splitlines() if "Hook,," in line)
+    assert title in hook.replace(r"\N", " ")
+    assert hook.count(r"\N") <= 2
 
 
 @pytest.fixture
@@ -70,6 +85,15 @@ def test_unrecognised_render_revision_stays_queued(style_queue):
     store, job = style_queue
     store.add_task(job, "render", "future", {"render_revision": 99})
     assert store.claim("pc-1") is None and store.claim("pc-2") is None
+
+
+def test_soft_finish_waits_for_capable_worker_even_without_explicit_revision(style_queue):
+    store, job = style_queue
+    store.heartbeat("pc-2", ["render"], {"render_revision": 2})
+    task = store.add_task(job, "render", "soft", {"editing": {"vignette": "soft"}})
+    assert store.claim("pc-1") is None and store.claim("pc-2") is None
+    store.heartbeat("pc-2", ["render"], {"render_revision": 3})
+    assert store.claim("pc-2")["id"] == task
 
 
 def test_new_render_requires_worker_to_report_requested_style(style_queue, client, worker_headers):

@@ -339,6 +339,10 @@ class Store:
         return job_id, True
 
     def add_task(self, job_id, kind, key, payload, preferred=None, asset_ids=()):
+        if kind == "render":
+            from boti.styles import render_revision
+
+            payload = {**payload, "render_revision": render_revision(payload)}
         task_id = uid()
         now = time.time()
         with self.connect(immediate=True) as db:
@@ -400,7 +404,11 @@ class Store:
                 return None
             workers = db.execute("SELECT id,capabilities,hardware,last_seen,paused FROM workers").fetchall()
             legacy = eligible_capabilities(
-                workers, settings.analysis_worker_id, now, quality_worker_id=settings.quality_worker_id
+                workers,
+                settings.analysis_worker_id,
+                now,
+                quality_worker_id=settings.quality_worker_id,
+                quality_parallel_workers=settings.quality_parallel_workers,
             )[worker_id]
             modern = eligible_capabilities(
                 workers,
@@ -408,6 +416,7 @@ class Store:
                 now,
                 render_revision=1,
                 quality_worker_id=settings.quality_worker_id,
+                quality_parallel_workers=settings.quality_parallel_workers,
             )[worker_id]
             titled = eligible_capabilities(
                 workers,
@@ -415,8 +424,17 @@ class Store:
                 now,
                 render_revision=2,
                 quality_worker_id=settings.quality_worker_id,
+                quality_parallel_workers=settings.quality_parallel_workers,
             )[worker_id]
-            capabilities = sorted(legacy | modern | titled)
+            polished = eligible_capabilities(
+                workers,
+                settings.analysis_worker_id,
+                now,
+                render_revision=3,
+                quality_worker_id=settings.quality_worker_id,
+                quality_parallel_workers=settings.quality_parallel_workers,
+            )[worker_id]
+            capabilities = sorted(legacy | modern | titled | polished)
             if not capabilities:
                 return None
             marks = ",".join("?" for _ in capabilities)
@@ -427,7 +445,8 @@ class Store:
                 AND (t.kind!='render' OR
                     (coalesce(json_extract(t.payload,'$.render_revision'),0)=0 AND ?) OR
                     (coalesce(json_extract(t.payload,'$.render_revision'),0)=1 AND ?) OR
-                    (coalesce(json_extract(t.payload,'$.render_revision'),0)=2 AND ?))
+                    (coalesce(json_extract(t.payload,'$.render_revision'),0)=2 AND ?) OR
+                    (coalesce(json_extract(t.payload,'$.render_revision'),0)=3 AND ?))
                 ORDER BY CASE WHEN t.created<? THEN 0 ELSE 1 END,
                 CASE WHEN t.created<? THEN t.created ELSE 0 END,
                 CASE t.kind WHEN 'quality' THEN -1 WHEN 'repair' THEN -1 WHEN 'render' THEN 0 WHEN 'analyze' THEN 1 ELSE 2 END,
@@ -438,6 +457,7 @@ class Store:
                     "render" in legacy,
                     "render" in modern,
                     "render" in titled,
+                    "render" in polished,
                     now - 1800,
                     now - 1800,
                     worker_id,
@@ -533,6 +553,7 @@ class Store:
             settings.analysis_worker_id,
             render_revision=settings.editing.required_revision,
             quality_worker_id=settings.quality_worker_id,
+            quality_parallel_workers=settings.quality_parallel_workers,
         )
         for worker in workers:
             worker["capabilities"] = json.loads(worker["capabilities"])
@@ -592,6 +613,7 @@ class Store:
             now,
             render_revision=self.settings().editing.required_revision,
             quality_worker_id=self.settings().quality_worker_id,
+            quality_parallel_workers=self.settings().quality_parallel_workers,
         )
         result = []
         for kind in ("transcribe", "analyze", "render", "quality", "repair"):

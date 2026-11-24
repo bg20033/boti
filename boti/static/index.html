@@ -87,9 +87,11 @@
           <label>Titrat<select id="setting-captions"><option value="highlight">Thekso fjalën që po thuhet</option><option value="plain">Titra të thjeshtë</option></select></label>
           <label>PC-ja kryesore për gjetjen e momenteve<select id="setting-analysis-worker"><option value="">Ndaje analizën mes PC-ve</option></select></label>
           <label>PC-ja për kontrollin e cilësisë<select id="setting-quality-worker"><option value="">Me analizën në main</option></select></label>
+          <label>PC paralel për cilësinë<input id="setting-quality-parallel" type="number" min="1" max="4" value="1" required></label>
+          <p class="muted">Me një PC cilësie të zgjedhur, ky kufi lejon edhe workerat e tjerë të përditësuar të kontrollojnë klipe të ndryshme paralelisht. Main-i mbetet për analizë dhe mbulon cilësinë kur workerat mungojnë.</p>
         </div><p class="muted">Gjetja e momenteve dhe kontrolli i cilësisë mund të ndahen në dy PC. PC-të e tjera bëjnë transkriptimin, titrat, renderimin dhe korrigjimet. Nëse një rol shkëputet, puna kalon te PC-të e disponueshme.</p><p id="routing-status" role="status" class="muted"></p>
 <div class="editing-panel" id="editing-controls">
-  <div class="section-title"><div><p class="eyebrow">PAMJA E VIDEOVE</p><h2>Titra dhe efekte</h2></div><button type="button" id="apply-social-style" class="secondary">Përdor stilin Social</button></div>
+  <div class="section-title"><div><p class="eyebrow">PAMJA E VIDEOVE</p><h2>Titra dhe efekte</h2></div><button type="button" id="apply-pro-style" class="secondary">Përdor stilin Pro të lehtë</button><button type="button" id="apply-social-style" class="secondary">Përdor stilin Social</button></div>
   <p class="muted">Përdoret për renderimet e reja. Titrat ndjekin kohët e transkriptit dhe rregullat e fushatës.</p>
   <div class="edit-preview" aria-label="Shembull i pamjes së titrave"><span class="preview-label">SHEMBULL STILI</span><h3 id="edit-title-preview" hidden>Momenti më i mirë</h3><div>Një moment që <strong>ia vlen.</strong></div><i></i></div>
   <div class="settings-grid">
@@ -97,6 +99,8 @@
     <label>Madhësia e titrave<select id="edit-size"><option value="normal">Normale</option><option value="large">Të mëdha</option></select></label>
     <label>Pozita e titrave<select id="edit-position"><option value="lower">Poshtë, brenda zonës së sigurt</option><option value="middle">Më lart në video</option></select></label>
     <label>Animacioni i titrave<select id="edit-motion"><option value="none">Pa animacion</option><option value="pop">Pop i lehtë</option></select></label>
+    <label>Vignette e zezë<select id="edit-vignette"><option value="off">Pa vignette</option><option value="soft">Shumë e lehtë rreth skajeve</option></select></label>
+    <label class="checkbox-row"><input id="edit-background-dim" type="checkbox"> Sfondi i turbullt pak më i errët</label>
   </div><div class="editing-toggles"><label class="checkbox-row"><input id="edit-enhance" type="checkbox"> Përmirësim i lehtë i ngjyrave dhe kontrastit</label><label class="checkbox-row"><input id="edit-progress" type="checkbox"> Shirit i hollë progresi në fund të videos</label></div>
   <div class="title-controls"><label class="checkbox-row"><input id="edit-title-enabled" type="checkbox"> Titull sipër videos</label><p class="muted">Titulli gjenerohet me kuriozitet, në vetën e tretë dhe kontrollohet kundrejt momentit. Përdoret edhe për publikimin. Te Biblioteka mund ta ndryshosh veçmas.</p><label class="title-custom">Tekst i njëjtë për videot, opsional<input id="edit-title-text" maxlength="120" placeholder="Lëre bosh për titullin automatik të momentit"></label><div class="settings-grid"><label>Madhësia e titullit<select id="edit-title-size"><option value="normal">Normale</option><option value="large">Të mëdha</option></select></label><label>Pamja e titullit<select id="edit-title-appearance"><option value="box">Me sfond të errët</option><option value="outline">Me kontur</option></select></label><label>Shfaqe për / sekonda<input id="edit-title-seconds" type="number" min="1" max="15" value="4" required></label><label class="checkbox-row"><input id="edit-title-full" type="checkbox"> Gjatë gjithë videos</label></div></div>
   <p id="edit-worker-status" class="muted" role="status"></p>

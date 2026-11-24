@@ -45,6 +45,7 @@ class Settings(BaseModel):
     caption_style: str = Field(default="highlight", pattern="^(highlight|plain)$")
     analysis_worker_id: str | None = Field(default=None, min_length=1, max_length=100)
     quality_worker_id: str | None = Field(default=None, min_length=1, max_length=100)
+    quality_parallel_workers: int = Field(default=1, ge=1, le=4)
     editing: EditStyle = Field(default_factory=EditStyle)
 
 

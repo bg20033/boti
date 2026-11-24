@@ -334,7 +334,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             f"Dialogue: 1,{_ass_time(0)},{_ass_time(length)},Mark,,{_MARK_SIDE},{_MARK_SIDE},{margin},,"
             rf"{{\an{_ANCHOR.get(position, 9)}}}{mark}" + "\n"
         )
-    hook = wrap_title(overlays.get("hook") or "", width=22, rows=2 if editing.title_enabled else 3)
+    pro_title = editing.title_enabled and editing.required_revision >= 3
+    hook = wrap_title(
+        overlays.get("hook") or "",
+        width=32 if pro_title else 22,
+        rows=3 if pro_title or not editing.title_enabled else 2,
+    )
     if hook:
         title_end = (
             length
@@ -564,9 +569,12 @@ def render(
         graph = f"[0:v]crop={crop_width}:{height}:{left}:0,scale=1080:1920[layout];"
         layout = "speaker"
     else:
+        background = "boxblur=24:2" + (
+            ",eq=brightness=-0.045:saturation=0.9" if editing.background_dim else ""
+        )
         graph = (
             "[0:v]split=2[bg][fg];[bg]scale=1080:1920:force_original_aspect_ratio=increase,"
-            "crop=1080:1920,boxblur=24:2[back];"
+            f"crop=1080:1920,{background}[back];"
             "[fg]scale=1080:1920:force_original_aspect_ratio=decrease[front];"
             "[back][front]overlay=(W-w)/2:(H-h)/2[layout];"
         )
@@ -574,16 +582,23 @@ def render(
         graph = "[0:v]eq=contrast=1.025:saturation=1.06:brightness=0.003[graded];" + graph.replace(
             "[0:v]", "[graded]", 1
         )
+    # The delivery is always 30 FPS. Drop surplus frames before scaling/blur/effects.
+    graph = "[0:v]fps=30[timed];" + graph.replace("[0:v]", "[timed]", 1)
+    if editing.vignette == "soft":
+        # One static lens map per render; keep captions/logos crisp above the effect.
+        graph += "[layout]vignette=angle=PI/10:eval=init:dither=0[finished];"
+    else:
+        graph += "[layout]null[finished];"
     if rules.get("logo_sha256"):
         # Bounded size keeps the logo out of the caption area whatever its aspect ratio.
         graph += (
             "[1:v]scale=260:150:force_original_aspect_ratio=decrease,format=rgba,"
             "colorchannelmixer=aa=0.92[logo];"
-            "[layout]setsar=1,fps=30,subtitles=filename=captions.ass[text];"
+            "[finished]setsar=1,subtitles=filename=captions.ass[text];"
             f"[text][logo]{logo_overlay(rules.get('logo_position', 'top_left'))},format=yuv420p[out]"
         )
     else:
-        graph += "[layout]setsar=1,fps=30,subtitles=filename=captions.ass,format=yuv420p[out]"
+        graph += "[finished]setsar=1,subtitles=filename=captions.ass,format=yuv420p[out]"
     video_options = (
         ["-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "20", "-b:v", "0"]
         if encoder == "h264_nvenc"

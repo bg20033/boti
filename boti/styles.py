@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from boti.editing import clean_text
 
-RENDER_REVISION = 2
+RENDER_REVISION = 3
 V1_FIELDS = {
     "caption_color",
     "caption_size",
@@ -16,6 +16,14 @@ V1_FIELDS = {
     "progress_bar",
 }
 ACCENTS = {"classic": "66E8FF", "yellow": "00DFFF", "lime": "99EFD5", "cyan": "FFD47A"}
+V2_FIELDS = V1_FIELDS | {
+    "title_enabled",
+    "title_text",
+    "title_size",
+    "title_appearance",
+    "title_seconds",
+    "title_full",
+}
 
 
 class EditStyle(BaseModel):
@@ -26,6 +34,8 @@ class EditStyle(BaseModel):
     caption_motion: Literal["none", "pop"] = "none"
     color_enhance: bool = False
     progress_bar: bool = False
+    vignette: Literal["off", "soft"] = "off"
+    background_dim: bool = False
     title_enabled: bool = False
     title_text: str = Field(default="", max_length=120)
     title_size: Literal["normal", "large"] = "normal"
@@ -40,10 +50,14 @@ class EditStyle(BaseModel):
 
     def render_options(self):
         # v0.10 workers reject unknown style fields, even when those options are off.
-        return self.model_dump() if self.title_enabled else self.model_dump(include=V1_FIELDS)
+        if self.required_revision >= 3:
+            return self.model_dump()
+        return self.model_dump(include=V2_FIELDS if self.title_enabled else V1_FIELDS)
 
     @property
     def required_revision(self):
+        if self.vignette != "off" or self.background_dim:
+            return 3
         if self.title_enabled:
             return 2
         return 1 if self.model_dump(include=V1_FIELDS) != EditStyle().model_dump(include=V1_FIELDS) else 0

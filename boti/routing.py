@@ -7,7 +7,9 @@ EDITORIAL = frozenset({"analyze", "quality"})
 EXECUTION = frozenset({"transcribe", "render", "repair"})
 
 
-def eligible_capabilities(workers, primary_id=None, now=None, render_revision=0, quality_worker_id=None):
+def eligible_capabilities(
+    workers, primary_id=None, now=None, render_revision=0, quality_worker_id=None, quality_parallel_workers=1
+):
     now = time.time() if now is None else now
     available = {}
     hardware_by_id = {}
@@ -41,9 +43,19 @@ def eligible_capabilities(workers, primary_id=None, now=None, render_revision=0,
                 capabilities.discard("quality")
         preferred = available.get(quality_worker_id, set())
         target = quality_worker_id if "quality" in preferred else primary_id if "quality" in primary else None
-        if target:
+        targets = {target} if target else set()
+        if quality_parallel_workers > 1:
+            remote = [
+                identity
+                for identity, caps in available.items()
+                if identity != primary_id and "quality" in caps
+            ]
+            remote.sort(key=lambda identity: (identity != quality_worker_id, identity))
+            if remote:
+                targets = set(remote[:quality_parallel_workers])
+        if targets:
             for identity, capabilities in available.items():
-                if identity != target:
+                if identity not in targets:
                     capabilities.discard("quality")
     # Keep execution on remote PCs, even while they are busy. When no capable
     # remote remains connected, the main can continue the queue by itself.
