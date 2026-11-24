@@ -277,6 +277,9 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
         from boti.automation import automation_status
 
         result["automation"] = automation_status(store, result)
+        from boti.operations import operations
+
+        result["operations"] = operations(store, result)
         return result
 
     @app.put("/api/settings", dependencies=[Depends(admin)])

@@ -23,6 +23,7 @@ from boti.rules import (
     spoken_text,
 )
 from boti.sources import ADAPTERS, file_identity, inbox_file, validate_info
+from boti.storage_budget import ingest_reserve, source_bytes
 
 log = logging.getLogger(__name__)
 
@@ -60,7 +61,11 @@ class Pipeline:
         for candidate in self.store.all("SELECT * FROM jobs WHERE status='queued' ORDER BY created"):
             if candidate["run_mode"] == "trial" and not readiness(self.store)["ready"]:
                 continue
-            if not self.has_space(json.loads(candidate["metadata"]).get("reserve_bytes", 0)):
+            if not self.has_space(
+                ingest_reserve(
+                    json.loads(candidate["metadata"]), self.store.config.root / "media" / candidate["id"]
+                )
+            ):
                 # A long VOD waiting for disk must not block a smaller queued recording.
                 continue
             queued = candidate
@@ -123,11 +128,14 @@ class Pipeline:
             checked_at = 0
             reserve_bytes = 0
 
-            def progress(_):
+            def progress(event):
                 nonlocal pause_reason, checked_at
                 if time.monotonic() - checked_at < 1:
                     return
                 checked_at = time.monotonic()
+                from boti.operations import record_download
+
+                record_download(self.store, job["id"], event)
                 if not self.has_space(reserve_bytes):
                     pause_reason = "Shkarkimi pret hapësirë në disk; pjesa e shkarkuar ruhet"
                     raise DownloadPaused(pause_reason)
@@ -146,6 +154,7 @@ class Pipeline:
                 "skip_unavailable_fragments": False,
                 "continuedl": True,
                 "socket_timeout": 30,
+                "concurrent_fragment_downloads": settings.download_fragments,
                 "restrictfilenames": True,
                 "progress_hooks": [progress],
                 "match_filter": lambda info, **_: (
@@ -181,10 +190,23 @@ class Pipeline:
                         "vetëm nëse fushata e autorizon."
                     )
                 reserve_bytes = int(float(info.get("duration") or 0) * 90000)
+                estimate = source_bytes(info)
                 self.store.execute(
-                    "UPDATE jobs SET metadata=? WHERE id=?",
-                    (encode({"reserve_bytes": reserve_bytes}), job["id"]),
+                    "UPDATE jobs SET title=?,metadata=json_set(metadata,'$.reserve_bytes',?,'$.download_estimated_bytes',?),updated=? WHERE id=?",
+                    (
+                        str(info.get("title") or job["video_id"])[:500],
+                        reserve_bytes,
+                        estimate,
+                        time.time(),
+                        job["id"],
+                    ),
                 )
+                current = self.store.one("SELECT metadata FROM jobs WHERE id=?", (job["id"],))
+                required = ingest_reserve(json.loads(current["metadata"]), directory)
+                if not self.has_space(required):
+                    raise DownloadPaused(
+                        f"VOD-i pret rreth {required / 1024**3:.1f} GB për burimin e mbetur dhe përgatitjen, mbi pragun e lirë"
+                    )
                 progress({})
                 try:
                     info = downloader.extract_info(job["url"], download=True, ie_key=adapter.extractor)
@@ -252,6 +274,9 @@ class Pipeline:
             raise DownloadPaused("Shkarkimi u ruajt; përgatitja pret hapësirë për audio dhe segmente")
         audio = directory / "audio.wav"
         if not audio.exists():
+            from boti.operations import record_phase
+
+            record_phase(self.store, job["id"], "audio")
             extract_audio(source, audio)
         chunk_seconds, overlap_seconds = chunking(settings, rules)
         metadata.update(
@@ -271,6 +296,13 @@ class Pipeline:
             "SELECT profile FROM sources WHERE id=?", (metadata.get("channel", "unknown"),)
         )
         speech = json.loads(source_profile["profile"]) if source_profile else {}
+        from boti.operations import record_phase
+
+        total_chunks = sum(
+            min(chunk_seconds, length - start) >= rules.min_seconds
+            and (start == 0 or length - start > overlap_seconds)
+            for start in range(0, int(length), step)
+        )
         for index, start in enumerate(range(0, int(length), step)):
             chunk_length = min(chunk_seconds, length - start)
             if chunk_length < rules.min_seconds or (index and chunk_length <= overlap_seconds):
@@ -293,6 +325,7 @@ class Pipeline:
                 },
                 asset_ids=[asset["id"]],
             )
+            record_phase(self.store, job["id"], "segments", completed=index + 1, total=total_chunks)
         self.store.execute(
             "UPDATE jobs SET status='processing',updated=? WHERE id=?", (time.time(), job["id"])
         )

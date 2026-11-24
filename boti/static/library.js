@@ -49,6 +49,13 @@ function clipPreview(clip) {
   return `<div class="clip-preview">${url ? `<video controls preload="none" playsinline data-preview-src="${esc(url)}#t=0.1" aria-label="${esc(clip.metadata.title || "Klip")}"></video>` : `<div class="preview-pending"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>${["preparing", "rendering"].includes(clip.status) ? "Videoja po përgatitet" : "Videoja nuk është në disk"}</span></div>`}<span class="duration-tag">${Math.round(clip.end - clip.start)}s</span></div>`;
 }
 
+function captionAuditDetails(report) {
+  const audit=report.result.technical?.caption_recheck;
+  if(!audit)return "";
+  const samples=audit.inspection?.samples||[];
+  return `<details class="caption-audit-details"><summary>Leximi i veçantë i titrave: ${samples.filter(s=>s.matched).length}/${samples.length} mostra përputhen</summary><p>${audit.inspection?.passed?"Fjalët e lexuara nga pamjet përputhen. Historia dhe kompozimi u kontrolluan sërish.":"Leximi nuk e konfirmoi përputhjen e çdo mostre; refuzimi mbetet."}</p>${samples.map(s=>`<p><b>${s.seconds.toFixed(2)}s · ${s.matched?"Përputhet":"Kërkon kontroll"}</b><br>Pritej: ${esc(s.expected_caption)}<br>U lexua: ${esc(s.observed_caption||"Pa lexim të qartë")}</p>`).join("")}</details>`;
+}
+
 function clipCard(clip, compact = false) {
   const heading = esc(clip.metadata.title || "Moment pa titull");
   if (compact) return `<article class="recent-clip">${clipPreview(clip)}<div class="recent-clip-body"><div class="clip-source">${esc(clipSource(clip))}${badge(clip.status)}</div><h3>${heading}</h3><button class="text-button" data-open-clip="${esc(clip.id)}">Shiko klipin ↗</button></div></article>`;
@@ -61,7 +68,7 @@ function clipCard(clip, compact = false) {
     ${clip.storage_worker ? `<p class="provider-storage">MP4 e ruajtur në ${esc(clip.storage_worker)}. Shikimi dhe publikimi presin këtë PC nëse është offline.</p>` : ""}
     ${clip.review_passed === 0 ? '<p class="quality-hold">Publikimi është ndalur nga vlerësimi yt.</p>' : ""}
     ${issues ? `<p class="quality-hold">${esc(issues)}</p>` : ""}
-    ${clip.quality_reason || reports.length ? `<details class="quality-details"><summary>${["skipped", "technical_failed"].includes(clip.status) ? "Pse nuk kaloi kontrollin?" : "Kontrolli i cilësisë"}</summary>${clip.quality_reason ? `<p class="review-note">${esc(clip.quality_reason)}</p>` : ""}${reports.map(report => `<p>v${report.version} · ${report.passed ? "Kaloi" : "Nuk kaloi"}: ${esc((report.result.verdict?.reasons || []).join("; "))}</p>`).join("")}</details>` : ""}
+    ${clip.quality_reason || reports.length ? `<details class="quality-details"><summary>${["skipped", "technical_failed"].includes(clip.status) ? "Pse nuk kaloi kontrollin?" : "Kontrolli i cilësisë"}</summary>${clip.quality_reason ? `<p class="review-note">${esc(clip.quality_reason)}</p>` : ""}${reports.map(report => `<p>v${report.version} · ${report.passed ? "Kaloi" : "Nuk kaloi"}: ${esc((report.result.verdict?.reasons || []).join("; "))}</p>${captionAuditDetails(report)}`).join("")}</details>` : ""}
     ${clip.review_notes ? `<p class="review-note">${esc(clip.review_notes)}</p>` : ""}
     ${clip.metadata.verification_reason ? `<details class="selection-reason"><summary>Pse u zgjodh ky moment?</summary><p>${esc(clip.metadata.verification_reason)}</p></details>` : ""}
     <div class="clip-actions">${safeVideoUrl(clip) ? `<a class="secondary" href="${esc(safeVideoUrl(clip))}" download="boti-${esc(clip.id)}.mp4">↓ Video MP4</a>` : ""}<button class="secondary" data-caption="${esc(clip.id)}">Përshkrimi</button>${clip.can_edit_title?`<button class="secondary" data-title-edit="${esc(clip.id)}">Titull sipër</button>`:""}${clip.status === "ready" && clip.run_mode !== "trial" ? `<a class="secondary" href="/api/clips/${esc(clip.id)}/tiktok.zip">Paketa TikTok ↓</a>` : ""}</div>
@@ -115,20 +122,27 @@ function renderWorkers(s) {
   const workers = [...s.workers].sort((a, b) => (b.id === primaryId) - (a.id === primaryId) || (s.server_time - (b.last_seen || 0) < 30) - (s.server_time - (a.last_seen || 0) < 30) || a.id.localeCompare(b.id));
   const online = workers.filter(w => s.server_time - (w.last_seen || 0) < 30);
   const offlineCount = workers.length - online.length;
-  $("worker-summary").textContent = `${online.length} të lidhur · ${online.filter(w => w.task).length} në punë`;
+  $("worker-summary").textContent = `${online.length} të lidhur · ${online.filter(w => w.task || (w.id===primaryId && s.jobs.some(j=>j.status==="downloading"))).length} në punë`;
   $("toggle-offline").hidden = !offlineCount;
   $("toggle-offline").textContent = `${showOffline ? "Fshih" : "Shfaq"} ${offlineCount} offline`;
   $("toggle-offline").setAttribute("aria-expanded", String(showOffline));
   $("workers").innerHTML = workers.map(worker => {
-    const active = s.server_time - (worker.last_seen || 0) < 30, busy = active && worker.task;
+    const ingest = worker.id===primaryId?s.jobs.find(j=>j.status==="downloading"):null;
+    const active = s.server_time - (worker.last_seen || 0) < 30, busy = active && (worker.task || ingest);
     const primary = worker.id === primaryId, h = worker.hardware;
     const cpu = Math.max(0, Math.min(100, Number(h.cpu_percent) || 0));
     const ram = Math.max(0, Math.min(100, Number(h.ram_percent) || 0));
     const label = primary ? "MAIN" : worker.id.replace("pc-", "W").toUpperCase();
+    const unit=(s.operations?.tasks||[]).find(t=>t.id===worker.task?.id);
+    const done=(s.operations?.completed_by_worker||[]).filter(t=>t.worker_id===worker.id).reduce((n,t)=>n+t.completed,0);
+    const currentJob=unit||ingest;
+    const phase=worker.task?status(worker.task.kind):({download:"Shkarkim",audio:"Nxjerrje audioje",segments:"Përgatitje segmentesh"}[ingest?.metadata?.ingest_progress?.phase]||"Përgatitje e VOD-it");
     return `<article class="worker-card ${primary ? "primary-worker" : ""} ${active ? busy ? "busy" : "online" : "offline"}" ${!active && !showOffline ? "hidden" : ""}>
       <div class="worker-top"><div class="worker-identity"><span class="worker-avatar">${esc(label)}</span><div><strong>${esc(primary ? "PC-ja kryesore" : worker.name)}</strong><small>${primary ? "Gjetja e momenteve" : "Përpunimi i videove"}</small></div></div><span class="badge ${worker.paused ? "warn" : active ? "good" : ""}">${worker.paused ? "Pezulluar" : active ? busy ? "Në punë" : "Gati" : "Offline"}</span></div>
-      <div class="worker-task">${busy ? `<span class="task-pulse"></span><b>${esc(status(worker.task.kind))}</b><button class="text-button" data-job="${esc(worker.task.job_id)}">Hap punën ↗</button>` : active ? '<span class="idle-dot"></span><span>Pret detyrën e radhës</span>' : '<span>Nuk është lidhur</span>'}</div>
+      <div class="worker-task">${busy ? `<span class="task-pulse"></span><b>${esc(phase)}</b><button class="text-button" data-job="${esc(worker.task?.job_id||ingest.id)}">Hap punën ↗</button>` : active ? '<span class="idle-dot"></span><span>Pret detyrën e radhës</span>' : '<span>Nuk është lidhur</span>'}</div>
+      ${currentJob?`<p class="worker-current-source">${esc(currentJob.title||"VOD në përgatitje")}${unit?`<br><small>${elapsed(unit.elapsed_seconds)} në këtë detyrë${unit.offset!==null?" · segmenti nis në "+elapsed(unit.offset):""}</small>`:""}</p>`:""}
       <div class="resource-row"><span>CPU <b>${active ? Math.round(cpu) + "%" : "—"}</b></span><div class="resource-track"><i style="width:${active ? cpu : 0}%"></i></div><span>RAM <b>${active ? Math.round(ram) + "%" : "—"}</b></span></div>
+      <div class="worker-detail-grid"><span>Disk i lirë <b>${active&&h.free_gb!==undefined?esc(h.free_gb)+" GB":"—"}</b></span><span>Detyra /24h <b>${done}</b></span><span>Versioni <b>${esc(h.boti_version||"—")}</b></span><span>Lidhja <b>${esc(ago(worker.last_seen))}</b></span></div>
       <div class="worker-tools">${(worker.assigned_capabilities || []).map(status).map(esc).join(" · ") || "Pa role aktive"}</div><div class="worker-foot"><span>${h.ram_gb ? esc(h.ram_gb) + " GB RAM" : "Pa të dhëna"}</span><button class="text-button" data-worker-pause="${esc(worker.id)}" data-paused="${worker.paused ? "1" : "0"}">${worker.paused ? "Vazhdo" : "Pezullo"}</button></div>
     </article>`;
   }).join("");

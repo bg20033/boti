@@ -38,6 +38,7 @@ class Settings(BaseModel):
     target_clips_daily: int = Field(default=1000, ge=1)
     max_active_jobs: int = Field(default=2, ge=1, le=20)
     max_prepared_tasks: int = Field(default=8, ge=1, le=100)
+    download_fragments: int = Field(default=4, ge=1, le=16)
     caption_style: str = Field(default="highlight", pattern="^(highlight|plain)$")
     analysis_worker_id: str | None = Field(default=None, min_length=1, max_length=100)
     editing: EditStyle = Field(default_factory=EditStyle)

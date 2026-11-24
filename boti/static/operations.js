@@ -1,0 +1,30 @@
+"use strict";
+let operationMode = "production";
+function bytes(value) {return value >= 1024**3 ? (value/1024**3).toFixed(2)+" GB" : (value/1024**2).toFixed(1)+" MB";}
+function timecode(value) {const n=Math.max(0,Math.floor(value)),s=String(n%60).padStart(2,"0"),m=String(Math.floor(n/60)%60).padStart(2,"0"),h=Math.floor(n/3600);return (h?String(h).padStart(2,"0")+":":"")+m+":"+s;}
+function renderOperations(s) {
+  const ops=s.operations; if(!ops)return;
+  const selected=ops.funnel_24h.filter(row=>operationMode==="all"||row.run_mode===operationMode);
+  const sum=key=>selected.reduce((n,row)=>n+(row[key]||0),0), total=sum("proposed"), accepted=sum("accepted"), rejected=sum("rejected"), failed=sum("failed"), active=sum("active"), terminal=accepted+rejected+failed;
+  $("production-metrics").innerHTML=[[total,"Momente të zgjedhura"],[accepted,"Kaluan cilësinë"],[rejected+failed,"Refuzuar / gabim"],[active,"Në përpunim"]].map(([n,label])=>`<article><strong>${n}</strong><span>${label}</span></article>`).join("");
+  $("production-yield").textContent=terminal?`${Math.round(accepted/terminal*100)}% kaluan kontrollin · ${terminal} vendime përfundimtare` : "Ende pa vendime përfundimtare në këtë mënyrë pune";
+  $("production-funnel").innerHTML=total?[[accepted,"accepted"],[rejected,"rejected"],[failed,"failed"],[active,"active"]].map(([n,type])=>`<span class="${type}" style="width:${n/total*100}%" title="${n}"></span>`).join(""):"";
+  const sections=ops.sections_24h.filter(row=>operationMode==="all"||row.run_mode===operationMode);
+  $("production-sections").textContent=sections.reduce((n,r)=>n+(r.kind==="transcribe"?r.completed:0),0)+" segmente të transkriptuara · "+sections.reduce((n,r)=>n+(r.kind==="analyze"?r.completed:0),0)+" segmente të analizuara /24h";
+  const reasons={};Object.entries(ops.rejection_reasons_24h).forEach(([mode,rows])=>{if(operationMode==="all"||mode===operationMode)Object.entries(rows).forEach(([key,n])=>reasons[key]=(reasons[key]||0)+n);});
+  $("production-rejections").innerHTML=Object.entries(reasons).sort((a,b)=>b[1]-a[1]).map(([key,n])=>`<span>${esc({captions:"Titra",boundaries:"Prerja / historia",layout:"Pamja",technical:"Teknik",none:"Përmbajtja / rezultati"}[key]||key)} <b>${n}</b></span>`).join("")||'<span>Ende pa refuzime të regjistruara /24h</span>';
+  $("bottleneck-list").innerHTML=ops.bottlenecks.map(text=>`<li>${esc(text)}</li>`).join("");
+  $("bottleneck-list").hidden=!ops.bottlenecks.length;
+  const ingest=s.jobs.filter(j=>["downloading","queued"].includes(j.status));
+  $("ingest-live").innerHTML=ingest.slice(0,6).map(job=>{
+    const p=job.metadata.ingest_progress||{}, downloading=job.status==="downloading", fresh=s.server_time-(p.at||0)<30;
+    const budget=ops.storage_requirements?.find(b=>b.job_id===job.id);
+    const total=p.total_bytes||p.total_bytes_estimate, percent=total&&p.downloaded_bytes!==undefined?Math.min(100,p.downloaded_bytes/total*100):null;
+    const phase={download:"Shkarkim",audio:"Nxjerrje audioje",segments:"Përgatitje segmentesh"}[p.phase]||"Përgatitje e VOD-it";
+    const detail=p.phase==="segments"?`${p.completed}/${p.total} segmente`:p.phase==="audio"?"Main-i po përgatit audion për workerat":p.downloaded_bytes!==undefined?`${bytes(p.downloaded_bytes)}${total?" / "+bytes(total)+(p.total_bytes?"":" afërsisht"):""}`:"Progresi i shkarkimit ende nuk është raportuar";
+    return `<article class="ingest-live-card"><div><span class="badge ${downloading?"busy":"warn"}">${downloading?phase:"Në radhë"}</span><strong>${esc(job.title||job.url.split('/')[3]||"VOD")}</strong><small>${esc(job.provider.toUpperCase())} · ${job.run_mode==="trial"?"Provë":"Normal"} · MAIN</small></div><p>${downloading?esc(detail):esc(job.error||"Pret vendin në radhë")}</p>${budget?`<small>Kërkon rreth ${budget.required_free_gb} GB të lira, përfshirë pragun · Main: ${s.disk.free_gb} GB</small>`:""}${downloading&&percent!==null&&p.phase==="download"?`<div class="progress-track"><span style="width:${percent}%"></span></div>`:""}<small>${downloading&&p.phase==="download"?fresh?`${p.speed?bytes(p.speed)+"/s":"Shpejtësia ende pa matje"}${p.eta?" · rreth "+elapsed(p.eta)+" të mbetura":""}`:"Pret përditësimin e progresit":""}</small><button class="text-button" data-job="${esc(job.id)}">Hap punën ↗</button></article>`;
+  }).join("")||'<p class="muted">Nuk ka shkarkime në pritje.</p>';
+  $("task-queue-live").innerHTML=ops.tasks.slice(0,12).map(t=>`<div class="live-task"><span class="badge ${t.status==="running"?"busy":"warn"}">${esc(status(t.kind))}</span><div><strong>${esc(t.clip_title||t.title||"VOD në përpunim")}</strong><small>${t.status==="running"?esc(t.worker_id)+" · "+elapsed(t.elapsed_seconds)+" në punë":"Pret "+elapsed(t.wait_seconds)}${t.offset!==null?" · segmenti "+timecode(t.offset)+"–"+timecode(t.offset+(t.duration||0)):""} · tentativa ${t.attempts}</small></div><button class="text-button" data-job="${esc(t.job_id)}">Hap ↗</button></div>`).join("")||'<p class="muted">Nuk ka detyra aktive ose në radhë për workerat.</p>';
+  $("task-activity-live").innerHTML=ops.activity.slice(0,8).map(t=>`<div class="live-task"><span class="badge ${t.status==="complete"?"good":"error"}">${t.status==="complete"?"Përfundoi":"Dështoi"}</span><div><strong>${esc(t.worker_id||"Main")} · ${esc(status(t.kind))}</strong><small>${esc(t.title||"VOD")} · ${ago(t.finished)}</small>${t.error?`<small class="quality-hold">${esc(t.error)}</small>`:""}</div><button class="text-button" data-job="${esc(t.job_id)}">Hap ↗</button></div>`).join("")||'<p class="muted">Ende pa detyra të përfunduara /24h.</p>';
+}
+$("operation-mode").onchange=()=>{operationMode=$("operation-mode").value;if(snapshot)renderOperations(snapshot);};

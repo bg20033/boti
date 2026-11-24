@@ -226,10 +226,29 @@ class LocalAI:
                     try:
                         headline = Headline.model_validate(check.get("headline"))
                     except ValidationError:
-                        log.warning(
-                            "Titulli nuk kaloi kontrollin e vetës së tretë/burimit; kandidati u anashkalua"
-                        )
-                        continue
+                        # Preserve an independently verified moment when only its copy needs fixing.
+                        try:
+                            headline = Headline.model_validate(
+                                self.chat(
+                                    system,
+                                    "The moment passed its independent editorial review, but the headline failed "
+                                    "validation. Rewrite ONLY headline and third-person caption, no changes to "
+                                    "timing or score. Use the third-person policy and at most 90 characters. "
+                                    "Cite exact source evidence inside this cut. Return grounded/third_person false "
+                                    "if it cannot be supported.\n"
+                                    + json.dumps(
+                                        {"clip": candidate.model_dump(), "transcript": context},
+                                        ensure_ascii=False,
+                                    ),
+                                    Headline.model_json_schema(),
+                                    [image],
+                                )
+                            )
+                        except ValidationError:
+                            log.warning(
+                                "Titulli nuk kaloi as rishkrimin e kontrolluar; kandidati u anashkalua"
+                            )
+                            continue
                     candidate.title = headline.title
                     candidate.caption = headline.caption
                     candidate.headline_evidence = headline.evidence

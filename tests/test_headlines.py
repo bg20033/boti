@@ -90,3 +90,35 @@ def test_verified_hook_replaces_first_person_proposal_before_rendering(
     saved = json.loads(store.one("SELECT metadata FROM clips WHERE job_id=?", (job,))["metadata"])
     assert saved["headline_evidence"] == candidate["headline_evidence"]
     assert saved["title"] == candidate["title"]
+
+
+def test_verified_moment_gets_one_headline_rewrite_without_changing_cut_or_score(monkeypatch, tmp_path):
+    monkeypatch.setattr("boti.ai.storyboard", lambda _, dest, *a: dest.write_bytes(b"fixture"))
+    monkeypatch.setattr("boti.ai.energy_peaks", lambda _: [])
+    monkeypatch.setattr("boti.ai.scene_changes", lambda _: [])
+    rewrites = []
+
+    def transport(request):
+        if request.url.path.endswith("generate"):
+            return httpx.Response(200, json={})
+        schema = json.loads(request.content)["format"]["properties"]
+        if "candidates" in schema:
+            result = {"candidates": [{"start": 0, "end": 30, "score": 94, "title": "Original"}]}
+        elif "headline" in schema:
+            result = {
+                "approved": True,
+                "score": 88,
+                "reason": "Verified visual payoff",
+                "headline": headline(title="You won't believe his reaction"),
+            }
+        else:
+            rewrites.append(request)
+            result = headline()
+        return httpx.Response(200, json={"message": {"content": json.dumps(result)}})
+
+    result = LocalAI(client=httpx.Client(transport=httpx.MockTransport(transport))).analyze(
+        Path("audio"), Path("proxy"), {"segments": []}, 60, tmp_path
+    )
+    clip = result["candidates"][0]
+    assert len(rewrites) == 1 and clip["title"] == headline()["title"]
+    assert (clip["start"], clip["end"], clip["score"]) == (0, 30, 88)
