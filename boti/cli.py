@@ -4,12 +4,13 @@ import argparse
 import json
 import logging
 import time
+from datetime import UTC
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 import httpx
 
-from boti.config import Config
+from boti.config import Config, private_write
 from boti.db import Store
 
 
@@ -27,54 +28,87 @@ def setup_logging(root: Path):
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
-def connect_youtube(store: Store, group_id: str, client_file: Path, privacy: str, no_browser=False):
+def connect_youtube(
+    store: Store, group_id: str, client_file: Path, privacy: str, no_browser=False, channel_id=None
+):
     from google_auth_oauthlib.flow import InstalledAppFlow
 
     account = store.one("SELECT * FROM accounts WHERE group_id=? AND platform='youtube'", (group_id,))
     if not account:
         raise ValueError("Grupi nuk ekziston. Shih ID-të me: boti groups")
-    config = json.loads(client_file.read_text())
+    config = json.loads(client_file.read_text(encoding="utf-8-sig"))
     if "installed" not in config:
         raise ValueError("Përdor OAuth Client të tipit Desktop app")
     client = config["installed"]
     if not client.get("project_id"):
         raise ValueError("OAuth client JSON duhet të përmbajë project_id për kuotën e përbashkët")
-    flow = InstalledAppFlow.from_client_secrets_file(
-        str(client_file),
-        scopes=[
-            "https://www.googleapis.com/auth/youtube.upload",
-            "https://www.googleapis.com/auth/youtube.readonly",
-        ],
-    )
-    credentials = flow.run_local_server(
-        port=0, open_browser=not no_browser, access_type="offline", prompt="consent"
-    )
-    if not credentials.refresh_token:
-        raise ValueError("Google nuk ktheu refresh token. Revoko lidhjen e vjetër dhe autorizo përsëri.")
+    pending = store.config.root / "secrets" / f"youtube-pending-{account['id']}.enc"
+    secret = store.config.decrypt(pending.read_text()) if pending.exists() else None
+    if not secret or secret.get("client_id") != client["client_id"]:
+        flow = InstalledAppFlow.from_client_secrets_file(
+            str(client_file),
+            scopes=[
+                "https://www.googleapis.com/auth/youtube.upload",
+                "https://www.googleapis.com/auth/youtube.readonly",
+            ],
+        )
+        credentials = flow.run_local_server(
+            port=0, open_browser=not no_browser, access_type="offline", prompt="consent"
+        )
+        if not credentials.refresh_token:
+            raise ValueError("Google nuk ktheu refresh token. Revoko lidhjen e vjetër dhe autorizo përsëri.")
+        expiry = credentials.expiry
+        if expiry and expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=UTC)
+        secret = {
+            "client_id": client["client_id"],
+            "client_secret": client["client_secret"],
+            "project_id": client["project_id"],
+            "refresh_token": credentials.refresh_token,
+            "access_token": credentials.token,
+            "expires_at": expiry.timestamp() if expiry else 0,
+        }
+        # Consent is durable even if the owner still needs to create a channel or enable the API.
+        private_write(pending, store.config.encrypt(secret))
     with httpx.Client(timeout=30) as http:
+        if secret["expires_at"] <= time.time() + 120:
+            refreshed = http.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "client_id": secret["client_id"],
+                    "client_secret": secret["client_secret"],
+                    "refresh_token": secret["refresh_token"],
+                    "grant_type": "refresh_token",
+                },
+            )
+            refreshed.raise_for_status()
+            value = refreshed.json()
+            secret.update(
+                access_token=value["access_token"], expires_at=time.time() + value.get("expires_in", 3600)
+            )
+            private_write(pending, store.config.encrypt(secret))
         response = http.get(
             "https://www.googleapis.com/youtube/v3/channels",
             params={"part": "snippet", "mine": "true"},
-            headers={"Authorization": f"Bearer {credentials.token}"},
+            headers={"Authorization": f"Bearer {secret['access_token']}"},
         )
         response.raise_for_status()
         channels = response.json().get("items", [])
+    if not channels:
+        raise ValueError(
+            "Google u autorizua, por kjo llogari nuk ka kanal YouTube. Krijoje te https://www.youtube.com/create_channel dhe provo përsëri; autorizimi u ruajt i enkriptuar."
+        )
+    if channel_id:
+        channels = [channel for channel in channels if channel["id"] == channel_id]
     if len(channels) != 1:
-        raise ValueError("Autorizo një kanal të vetëm YouTube për këtë grup")
+        choices = "; ".join(f"{item['snippet']['title']} ({item['id']})" for item in channels)
+        raise ValueError("Zgjidh kanalin me --channel nga llogaria e autorizuar: " + choices)
     channel = channels[0]
     if store.one(
         "SELECT id FROM accounts WHERE platform='youtube' AND external_id=? AND id!=?",
         (channel["id"], account["id"]),
     ):
         raise ValueError("Ky kanal është lidhur tashmë me një grup tjetër")
-    secret = {
-        "client_id": client["client_id"],
-        "client_secret": client["client_secret"],
-        "project_id": client["project_id"],
-        "refresh_token": credentials.refresh_token,
-        "access_token": credentials.token,
-        "expires_at": credentials.expiry.timestamp() if credentials.expiry else 0,
-    }
     store.execute(
         "UPDATE accounts SET external_id=?,name=?,credentials=?,settings=?,status='connected',error=NULL WHERE id=?",
         (
@@ -85,6 +119,7 @@ def connect_youtube(store: Store, group_id: str, client_file: Path, privacy: str
             account["id"],
         ),
     )
+    pending.unlink(missing_ok=True)
     print(f"U lidh YouTube: {channel['snippet']['title']} → {group_id}")
 
 
@@ -161,6 +196,7 @@ def main():
     youtube.add_argument("--client-secrets", type=Path, required=True)
     youtube.add_argument("--privacy", choices=["public", "private", "unlisted"], default="public")
     youtube.add_argument("--no-browser", action="store_true")
+    youtube.add_argument("--channel", help="ID-ja e kanalit kur llogaria e autorizuar kthen disa kanale")
     commands.add_parser("report", help="Raporti i 24 orëve të fundit")
     benchmark = commands.add_parser("benchmark", help="Mat kapacitetin gjatë punës reale")
     benchmark.add_argument("--hours", type=float, default=24)
@@ -215,7 +251,7 @@ def main():
         for group in store.all("SELECT * FROM groups ORDER BY id"):
             print(f"{group['id']}  {group['name']}")
     elif args.command == "connect-youtube":
-        connect_youtube(store, args.group, args.client_secrets, args.privacy, args.no_browser)
+        connect_youtube(store, args.group, args.client_secrets, args.privacy, args.no_browser, args.channel)
     elif args.command == "doctor":
         from boti.media import dependencies
 

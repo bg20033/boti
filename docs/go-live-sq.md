@@ -13,3 +13,5 @@ Gjendja më 24 nëntor 2026: publikimi automatik është i fikur dhe llogaritë 
 9. **Dorëzimi.** Publiko klipin që plotëson brief-in dhe ngjite URL-në publike te bounty → Submit clip brenda afatit. Ky hap është manual në clipping.net. Publikimi dhe verifikimi i Botit nuk garantojnë pranimin ose pagesën.
 
 Për përdorim të rregullt, respekto kufijtë realë dhe kontrollo cilësinë e mostrave. Mos përdor angazhim të rremë ose postime dublikatë në të njëjtën llogari. [Rregullat e clipping.net](https://clipping.net/docs/clippers/rules) kërkojnë cilësi dhe përputhje me brief-in; nuk ka një numër postimesh që garanton mungesë kufizimesh.
+
+Për lidhjen direkte YouTube, një autorizim i përfunduar Google ruhet i enkriptuar edhe nëse kanali nuk është krijuar ende ose verifikimi i API-së dështon. Pas krijimit të kanalit/problemit të API-së, përsërit komandën `connect-youtube`; nuk duhet përsëritur consent-i për të njëjtin klient. Nëse kthehen disa kanale, zgjidh një nga ID-të e autorizuara me `--channel`. Pas lidhjes së suksesshme, kopja e përkohshme e autorizimit hiqet dhe kredencialet mbeten të enkriptuara në llogarinë e Botit.
