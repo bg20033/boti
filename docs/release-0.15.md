@@ -39,3 +39,7 @@ Origjinalet e VOD-eve përgatiten ende në main; arkivi në Mint ruan MP4-të p�
 VOD-et e njohura që nuk futen në disk nuk konsumojnë vendin e ndjekjeve për burime të tjera. Kufiri i punëve që realisht mund të nisen vazhdon të vlejë; shkarkimet nuk nisen nën pragun e hapësirës.
 
 Kur një VOD pret hapësirë, burimet/cache-t e punëve normale automatike të përfunduara, pa fushatë, mund të pastrohen pas 60 minutash nga përfundimi (`source_cache_pressure_minutes`; 0 e çaktivizon). Punët aktive, fushatat, skedarët hyrës dhe të gjitha MP4-të/variantet e referuara nga klipet mbrohen. Provat ruajnë afatin e veçantë të tyre. Pa presion ruajtja normale e origjinaleve mbetet 7 ditë. Pas skadimit të cache-it nuk mund të përdoret burimi i vjetër për rieditim; videoja përfundimtare mbetet në bibliotekë/arkivin e workerit.
+
+## 0.15.2 — shikimi i klipeve nga arkivi
+
+Biblioteka mban shikimin dhe butonin MP4 edhe kur kopja e përkohshme në main ka skaduar dhe videoja ruhet në Mint. Hapja e videos kërkon rikthimin e autentikuar nga workeri; listimi i bibliotekës nuk rikthen të gjithë arkivin. Pa kopje lokale ose arkiv të konfirmuar, klipi vazhdon të shfaqet pa video. Fshirjet e pronarit mbeten të përhershme.

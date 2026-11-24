@@ -1,5 +1,6 @@
 import shutil
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from boti.archive import prune_cache, request_restore, retain
 from boti.db import encode, uid
@@ -80,3 +81,33 @@ def test_cache_is_retained_for_active_quality_and_recent_access(store, tmp_path)
     assert request_restore(store, asset)
     prune_cache(store)
     assert output.exists()
+
+
+def test_library_keeps_archived_preview_and_download_after_eviction(
+    store, client, worker_headers, admin_headers, tmp_path
+):
+    asset, output, kept = archived(store, tmp_path)
+    prune_cache(store)
+    assert not output.exists()
+    clip = client.get("/api/clips", headers=admin_headers).json()["clips"][0]
+    assert clip["video_url"] == f"/api/clips/{clip['id']}/video"
+    assert clip["storage_worker"] == "pc-1"
+    assert not store.all("SELECT * FROM archive_restores")  # Listing never restores the whole library.
+    assert client.get(clip["video_url"]).status_code == 401
+    with ThreadPoolExecutor() as executor:
+        viewing = executor.submit(client.get, clip["video_url"], headers=admin_headers)
+        item = None
+        deadline = time.monotonic() + 10
+        while item is None and time.monotonic() < deadline:
+            item = client.post("/api/worker/archive/claim", headers=worker_headers["pc-1"]).json()["restore"]
+            if item is None:
+                time.sleep(0.05)
+        assert item and item["asset_id"] == asset["id"]
+        restored = client.put(
+            f"/api/worker/archive/{asset['id']}/restore",
+            headers={**worker_headers["pc-1"], "X-Restore-Token": item["token"]},
+            content=kept.read_bytes(),
+        )
+        assert restored.status_code == 200
+        response = viewing.result(timeout=5)
+    assert response.status_code == 200 and response.content == kept.read_bytes()

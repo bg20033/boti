@@ -712,8 +712,15 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
         for item in result:
             item["metadata"] = json.loads(item["metadata"])
             asset = store.one("SELECT path FROM assets WHERE id=?", (item["asset_id"],))
+            location = (
+                store.one("SELECT worker_id FROM worker_archives WHERE asset_id=?", (item["asset_id"],))
+                if asset
+                else None
+            )
             item["video_url"] = (
-                f"/api/clips/{item['id']}/video" if asset and config.path(asset["path"]).exists() else None
+                f"/api/clips/{item['id']}/video"
+                if asset and (config.path(asset["path"]).is_file() or location)
+                else None
             )
             linked = store.one("SELECT rules_snapshot FROM job_campaigns WHERE job_id=?", (item["job_id"],))
             # What will actually be posted, and whether this version meets the campaign's clip rules.
@@ -746,11 +753,6 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
                 and not item["publications"]
                 and source
                 and config.path(source).is_file()
-            )
-            location = (
-                store.one("SELECT worker_id FROM worker_archives WHERE asset_id=?", (item["asset_id"],))
-                if item["asset_id"]
-                else None
             )
             item["storage_worker"] = location["worker_id"] if location else None
             for publication in item["publications"]:
