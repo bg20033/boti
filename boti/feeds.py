@@ -18,6 +18,7 @@ from boti.db import uid
 from boti.models import TrialOptions
 from boti.rules import source_allowed
 from boti.sources import validate_info, vod_url
+from boti.storage_budget import ingest_reserve
 
 log = logging.getLogger(__name__)
 
@@ -215,10 +216,16 @@ class FeedWatcher:
             if not config.enabled or store.settings().paused:
                 return
             validate_destination(store, config)
-            pending = store.one(
-                "SELECT count(*) n FROM jobs WHERE status IN ('queued','downloading','processing')"
+            free_budget = shutil.disk_usage(store.config.root).free - store.settings().min_free_gb * 1024**3
+            pending = sum(
+                j["status"] != "queued"
+                or ingest_reserve(json.loads(j["metadata"]), store.config.root / "media" / j["id"])
+                <= free_budget
+                for j in store.all(
+                    "SELECT id,status,metadata FROM jobs WHERE status IN ('queued','downloading','processing')"
+                )
             )
-            if pending["n"] >= config.pending_limit:
+            if pending >= config.pending_limit:
                 return
             job_id, created = store.create_job(
                 item["url"],

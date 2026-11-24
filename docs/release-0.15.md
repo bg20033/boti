@@ -30,6 +30,12 @@ uv sync --extra worker
 systemctl --user restart boti-worker-pc-2.service
 ```
 
-Paneli duhet të tregojë versionin 0.15.0 dhe të pastrojë njoftimin për kopjet e vjetra sapo workerat ta konfirmojnë fshirjen. Kontrolli i cilësisë kalon te W1 automatikisht. Nëse shërbimi nuk është aktiv, kontrollo `journalctl --user -u boti-worker-pc-1.service -n 30 --no-pager` (pc-2 për W2).
+Paneli duhet të tregojë versionin 0.15.x dhe të pastrojë njoftimin për kopjet e vjetra sapo workerat ta konfirmojnë fshirjen. Kontrolli i cilësisë kalon te W1 automatikisht. Nëse shërbimi nuk është aktiv, kontrollo `journalctl --user -u boti-worker-pc-1.service -n 30 --no-pager` (pc-2 për W2).
 
 Origjinalet e VOD-eve përgatiten ende në main; arkivi në Mint ruan MP4-të përfundimtare. Main-i duhet të ketë hapësirë për burimin dhe rezervën e tij. VOD-et që nuk futen presin; nuk ulet cilësia e burimit dhe nuk ulet pragu 75 për të shtuar sasi artificiale.
+
+## 0.15.1 — vazhdim kur ka mungesë hapësire
+
+VOD-et e njohura që nuk futen në disk nuk konsumojnë vendin e ndjekjeve për burime të tjera. Kufiri i punëve që realisht mund të nisen vazhdon të vlejë; shkarkimet nuk nisen nën pragun e hapësirës.
+
+Kur një VOD pret hapësirë, burimet/cache-t e punëve normale automatike të përfunduara, pa fushatë, mund të pastrohen pas 60 minutash nga përfundimi (`source_cache_pressure_minutes`; 0 e çaktivizon). Punët aktive, fushatat, skedarët hyrës dhe të gjitha MP4-të/variantet e referuara nga klipet mbrohen. Provat ruajnë afatin e veçantë të tyre. Pa presion ruajtja normale e origjinaleve mbetet 7 ditë. Pas skadimit të cache-it nuk mund të përdoret burimi i vjetër për rieditim; videoja përfundimtare mbetet në bibliotekë/arkivin e workerit.

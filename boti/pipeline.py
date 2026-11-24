@@ -37,6 +37,7 @@ class Pipeline:
         self.store = store
         self._proxies_left = 2
         self._renders_left = 4
+        self._last_pressure_cleanup = 0
         # A previous coordinator process may have stopped between durable stages.
         store.execute("UPDATE jobs SET status='queued' WHERE status='downloading'")
 
@@ -81,6 +82,11 @@ class Pipeline:
             except Exception as exc:
                 log.exception("Ingestion failed for %s", queued["id"])
                 self.fail_job(queued["id"], str(exc))
+        elif time.time() - self._last_pressure_cleanup >= 60 and self.store.one(
+            "SELECT 1 FROM jobs WHERE status='queued' LIMIT 1"
+        ):
+            self._last_pressure_cleanup = time.time()
+            self.cleanup()
 
     def campaign_rules(self, job_id) -> dict:
         """The rules snapshot this job was confirmed against; empty for jobs without a campaign."""
@@ -753,6 +759,12 @@ class Pipeline:
 
     def cleanup(self):
         settings, now = self.store.settings(), time.time()
+        pressure = settings.source_cache_pressure_minutes > 0 and any(
+            not self.has_space(
+                ingest_reserve(json.loads(j["metadata"]), self.store.config.root / "media" / j["id"])
+            )
+            for j in self.store.all("SELECT id,metadata FROM jobs WHERE status='queued'")
+        )
         for pattern in ("media/**/*.part", "media/**/*.part.*", "exports/download-*.zip"):
             for path in self.store.config.root.glob(pattern):
                 if path.stat().st_mtime < now - 86400:
@@ -767,10 +779,15 @@ class Pipeline:
                     path.unlink(missing_ok=True)
         for job in self.store.all(
             """SELECT * FROM jobs WHERE status='complete' AND (
-                completed<? OR (run_mode='trial' AND completed<?))""",
+                completed<? OR (run_mode='trial' AND completed<?) OR
+                (? AND run_mode='production' AND review_mode='automatic'
+                 AND provider IN ('kick','twitch','youtube') AND completed<?
+                 AND NOT EXISTS(SELECT 1 FROM job_campaigns jc WHERE jc.job_id=jobs.id)))""",
             (
                 now - settings.original_retention_days * 86400,
                 now - settings.trial_source_retention_hours * 3600,
+                pressure,
+                now - settings.source_cache_pressure_minutes * 60,
             ),
         ):
             # Serialize with manual re-editing: it must either keep its source or see it expired.
@@ -785,19 +802,42 @@ class Pipeline:
                         current["run_mode"] == "trial"
                         and completed < now - settings.trial_source_retention_hours * 3600
                     )
+                    or (
+                        pressure
+                        and current["run_mode"] == "production"
+                        and current["review_mode"] == "automatic"
+                        and current["provider"] in {"kick", "twitch", "youtube"}
+                        and completed < now - settings.source_cache_pressure_minutes * 60
+                        and not db.execute(
+                            "SELECT 1 FROM job_campaigns WHERE job_id=?", (job["id"],)
+                        ).fetchone()
+                    )
                 ):
                     continue
                 metadata = json.loads(current["metadata"])
                 if metadata.get("originals_cleaned"):
                     continue
+                protected = {
+                    self.store.config.path(a["path"])
+                    for a in db.execute(
+                        """SELECT a.path FROM assets a WHERE a.job_id=? AND
+                    (EXISTS(SELECT 1 FROM clips c WHERE c.asset_id=a.id) OR
+                     EXISTS(SELECT 1 FROM clip_versions v WHERE v.asset_id=a.id))""",
+                        (job["id"],),
+                    )
+                }
                 for asset in db.execute(
-                    "SELECT * FROM assets WHERE job_id=? AND task_id IS NULL", (job["id"],)
+                    """SELECT * FROM assets a WHERE job_id=? AND task_id IS NULL
+                    AND NOT EXISTS(SELECT 1 FROM clips c WHERE c.asset_id=a.id)
+                    AND NOT EXISTS(SELECT 1 FROM clip_versions v WHERE v.asset_id=a.id)""",
+                    (job["id"],),
                 ):
                     self.store.config.path(asset["path"]).unlink(missing_ok=True)
                 directory = self.store.config.root / "media" / job["id"]
                 for pattern in ("source.*", "trial.mp4", "trial-source.json", "trial-download.*"):
                     for path in directory.glob(pattern):
-                        path.unlink(missing_ok=True)
+                        if path.resolve() not in protected:
+                            path.unlink(missing_ok=True)
                 (directory / "audio.wav").unlink(missing_ok=True)
                 metadata["originals_cleaned"] = True
                 db.execute("UPDATE jobs SET metadata=? WHERE id=?", (encode(metadata), job["id"]))
