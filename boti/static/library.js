@@ -64,6 +64,7 @@ function clipCard(clip, compact = false) {
     ${clip.review_notes ? `<p class="review-note">${esc(clip.review_notes)}</p>` : ""}
     ${clip.metadata.verification_reason ? `<details class="selection-reason"><summary>Pse u zgjodh ky moment?</summary><p>${esc(clip.metadata.verification_reason)}</p></details>` : ""}
     <div class="clip-actions">${safeVideoUrl(clip) ? `<a class="secondary" href="${esc(safeVideoUrl(clip))}" download="boti-${esc(clip.id)}.mp4">↓ Video MP4</a>` : ""}<button class="secondary" data-caption="${esc(clip.id)}">Përshkrimi</button>${clip.can_edit_title?`<button class="secondary" data-title-edit="${esc(clip.id)}">Titull sipër</button>`:""}${clip.status === "ready" && clip.run_mode !== "trial" ? `<a class="secondary" href="/api/clips/${esc(clip.id)}/tiktok.zip">Paketa TikTok ↓</a>` : ""}</div>
+    ${clip.can_edit_title && clip.metadata.source_context?.length ? `<button class="text-button" data-refine="${esc(clip.id)}">Përmirëso prerjen ↗</button>` : ""}
     <details class="clip-review"><summary>Vlerëso klipin</summary><p class="muted">Vlerësimi yt ruhet veçmas nga kontrolli automatik.</p><div class="clip-actions"><button class="secondary" data-review="${esc(clip.id)}" data-passed="true">${clip.review_passed === 1 ? "✓ " : ""}Në rregull</button><button class="secondary" data-review="${esc(clip.id)}" data-passed="false">Përmirëso</button></div></details>
     ${(clip.publications || []).length ? `<details class="publication-details"><summary>Publikimet</summary><div class="platforms">${clip.publications.map(p => `<div class="platform-line"><span>${platformNames[p.platform]}</span>${p.url ? `<a href="${safeHref(p.url)}" target="_blank" rel="noopener noreferrer">Hap postimin ↗</a>` : badge(p.display_status || p.status)}${p.platform === "tiktok" && p.status === "manual_ready" ? `<button class="text-button" data-published="${esc(p.id)}">E publikova</button>` : ""}${["needs_reconciliation", "failed"].includes(p.status) ? `<button class="text-button" data-resolve="${esc(p.id)}">Verifiko</button>` : ""}</div>`).join("")}</div></details>` : ""}
     </div></article>`;
@@ -184,6 +185,21 @@ document.addEventListener("click", event => {
           $("dialog").close(); librarySignature=""; recentChecked=0; await loadClips(); await refresh();
           notify("Titulli u ruajt; klipi po rieditohet.");
         } catch(error){notify(error.message,true);}
+        finally{submit.disabled=false;}
+      };
+    }
+  }
+  if (button.dataset.refine) {
+    const clip = clips.find(item=>item.id===button.dataset.refine);
+    if (clip) {
+      dialog(`<h2>Përmirëso prerjen</h2><p>${esc(clip.metadata.title)}</p><p>Kërkon fillim dhe fund më të plotë të fjalisë, brenda kufijve të fushatës. Versioni i vjetër ruhet dhe rezultati kalon sërish në kontroll cilësie.</p><p class="muted">Nëse nuk ka prerje më të përshtatshme, videoja mbetet e njëjtë. Renderimi pret nëse disku është nën prag.</p><button class="primary" id="confirm-refine">Kërko prerje më të mirë</button>`);
+      $("confirm-refine").onclick=async()=>{
+        const submit=$("confirm-refine");submit.disabled=true;
+        try {
+          const result=await api(`/api/clips/${encodeURIComponent(clip.id)}/refine`,{method:"POST",body:{expected_version:clip.current_version}});
+          $("dialog").close();librarySignature="";recentChecked=0;await loadClips();await refresh();
+          notify(result.changed?"Prerja u përmirësua; versioni i ri pret renderimin.":"Prerja aktuale përputhet me kufijtë e përshtatshëm të fjalisë.");
+        }catch(error){notify(error.message,true);}
         finally{submit.disabled=false;}
       };
     }

@@ -226,6 +226,7 @@ def test_campaign_limits_reach_selection_and_banned_words_are_exact(client, stor
             "payload": encode(
                 {
                     "offset": 0,
+                    "duration": 300,
                     "transcript": {
                         "segments": [
                             segment(0, "The best moment."),

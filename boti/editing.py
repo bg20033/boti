@@ -7,6 +7,52 @@ import re
 import unicodedata
 
 SENTENCE_END = re.compile(r"[.!?…。！？][\"\'”’»)]*$")
+TRAILING_OFF = re.compile(r"(?:\.{2,}|…+)[\"\'”’»)]*$")
+
+
+def sentence_finished(text: str) -> bool:
+    text = text.strip()
+    return bool(SENTENCE_END.search(text) and not TRAILING_OFF.search(text))
+
+
+def boundary_evidence(segments: list[dict], start: float, end: float) -> dict:
+    """Observable cut defects, not a claim that punctuation proves a complete story."""
+    words = sorted(
+        [w for s in segments for w in s.get("words", []) if w["end"] > w["start"]],
+        key=lambda w: w["start"],
+    )
+    active = [w for w in words if w["end"] > start and w["start"] < end]
+    issues = []
+    if any(w["start"] + 0.03 < start < w["end"] - 0.03 for w in words):
+        issues.append("Prerja e fillimit kalon brenda një fjale")
+    if any(w["start"] + 0.03 < end < w["end"] - 0.03 for w in words):
+        issues.append("Prerja e fundit kalon brenda një fjale")
+    if active and TRAILING_OFF.search(active[-1]["word"].strip()):
+        issues.append("Fjalia në fund mbetet e papërfunduar (…)")
+    previous = next((w for w in reversed(words) if w["end"] <= start), None)
+    following = next((w for w in words if w["start"] >= end), None)
+    if (
+        active
+        and previous
+        and not sentence_finished(previous["word"])
+        and active[0]["start"] - previous["end"] < 0.5
+    ):
+        issues.append("Prerja e fillimit nis në mes të një fjalie të vazhdueshme")
+    if (
+        active
+        and following
+        and not sentence_finished(active[-1]["word"])
+        and following["start"] - active[-1]["end"] < 0.5
+    ):
+        issues.append("Prerja e fundit e ndërpret fjalinë para vazhdimit")
+    return {
+        "passed": not issues,
+        "issues": issues,
+        "first_words": " ".join(w["word"].strip() for w in active[:8]),
+        "last_words": " ".join(w["word"].strip() for w in active[-8:]),
+        "speech_starts_after": round(max(0, active[0]["start"] - start), 3) if active else None,
+        "silence_at_end": round(max(0, end - active[-1]["end"]), 3) if active else None,
+    }
 
 
 def clean_text(text: str) -> str:
@@ -100,18 +146,12 @@ def refine_boundaries(
         for index, word in enumerate(words):
             previous = words[index - 1] if index else None
             following = words[index + 1] if index + 1 < len(words) else None
-            if (
-                not previous
-                or SENTENCE_END.search(previous["word"].strip())
-                or word["start"] - previous["end"] >= 0.5
+            if not previous or sentence_finished(previous["word"]) or word["start"] - previous["end"] >= 0.5:
+                starts.append(max(0, word["start"] - 0.08, previous["end"] if previous else 0))
+            if not TRAILING_OFF.search(word["word"].strip()) and (
+                not following or sentence_finished(word["word"]) or following["start"] - word["end"] >= 0.5
             ):
-                starts.append(max(0, word["start"] - 0.08))
-            if (
-                not following
-                or SENTENCE_END.search(word["word"].strip())
-                or following["start"] - word["end"] >= 0.5
-            ):
-                ends.append(min(length, word["end"] + 0.12))
+                ends.append(min(length, word["end"] + 0.12, following["start"] if following else length))
     else:
         starts = [max(0, s["start"] - 0.08) for s in segments]
         ends = [min(length, s["end"] + 0.12) for s in segments]
@@ -119,7 +159,8 @@ def refine_boundaries(
     start_inside = next((w for w in words if w["start"] < start < w["end"]), None)
     end_inside = next((w for w in words if w["start"] < end < w["end"]), None)
     near_starts = [s for s in starts if abs(s - start) <= 2]
-    near_ends = [e for e in ends if abs(e - end) <= 2]
+    # A sentence/payoff can continue farther than two seconds. Never pad past the recording.
+    near_ends = [e for e in ends if abs(e - end) <= 6]
     near_starts.append(max(0, start_inside["start"] - 0.08) if start_inside else start)
     near_ends.append(min(length, end_inside["end"] + 0.12) if end_inside else min(end, length))
     choices = [
@@ -128,6 +169,7 @@ def refine_boundaries(
         for e in near_ends
         if min_length <= e - s <= max_length
         and not any(w["start"] < s < w["end"] or w["start"] < e < w["end"] for w in words)
+        and boundary_evidence(segments, s, e)["passed"]
     ]
     if not choices:
         return None

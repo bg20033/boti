@@ -133,7 +133,7 @@ def caption_alignment(expected, observed):
 
 
 def check_rendered(ai, path, payload, work, config=None):
-    from boti.editing import caption_phrases
+    from boti.editing import boundary_evidence, caption_phrases
     from boti.media import loudness_filter, storyboard, validate_output
     from boti.rules import clip_rules
 
@@ -161,11 +161,18 @@ def check_rendered(ai, path, payload, work, config=None):
         observed = detected["segments"]
         alignment = caption_alignment(segments, observed)
     technical["caption_alignment"] = alignment
+    metadata = payload["metadata"]
+    source_context = metadata.get("source_context") or []
+    if any(s.get("words") for s in source_context):
+        boundaries = boundary_evidence(source_context, metadata["start"], metadata["end"])
+    else:
+        boundaries = boundary_evidence(segments, 0, length)
+    technical["story_boundaries"] = boundaries
     # Silent visual moments can be valid; intelligibility is assessed editorially.
     audio_ok = audio["input_lufs"] is None or (
         abs(audio["input_lufs"] + 16) <= 2 and audio["input_peak_db"] <= -0.5
     )
-    technical_passed = timing_ok and audio_ok and alignment["passed"]
+    technical_passed = timing_ok and audio_ok and alignment["passed"] and boundaries["passed"]
     board = work / "final-review.jpg"
     storyboard(path, board, 0, length, portrait=True)
     selected_clip = {
@@ -184,6 +191,31 @@ def check_rendered(ai, path, payload, work, config=None):
             for word in phrase
         )
         frame_captions.append({"seconds": round(second, 3), "expected_caption": text})
+    images, caption_samples = [board], []
+    if phrases:
+        # Full portraits make caption text tiny in the contact sheet. Inspect the actual burned-in
+        # caption region separately, sampled inside active phrases rather than arbitrary silence.
+        count = min(6, len(phrases))
+        indexes = [round(i * (len(phrases) - 1) / max(1, count - 1)) for i in range(count)]
+        for i in indexes:
+            phrase = phrases[i]
+            caption_samples.append(
+                {
+                    "seconds": (phrase[0]["start"] + phrase[-1]["end"]) / 2,
+                    "expected_caption": " ".join(w["word"] for w in phrase),
+                }
+            )
+        closeups = work / "final-captions.jpg"
+        storyboard(
+            path,
+            closeups,
+            0,
+            length,
+            timestamps=[sample["seconds"] for sample in caption_samples],
+            caption_position=(payload.get("editing") or {}).get("caption_position", "lower"),
+        )
+        images.append(closeups)
+    technical["caption_samples"] = caption_samples
     try:
         verdict = Verdict.model_validate(
             ai.chat(
@@ -206,6 +238,10 @@ def check_rendered(ai, path, payload, work, config=None):
                 "starting at zero. The clip metadata start/end are source-video offsets, not caption offsets. "
                 "Caption word timing is measured against the full final audio by caption_alignment; still images "
                 "cannot establish audio synchronization. Review the visual readability and obstruction of captions. "
+                "Image 1 is the full-frame composition sheet. Image 2, when present, contains enlarged crops of "
+                "the actual burned-in captions, with its OWN timestamps listed in caption_closeups. Read crops "
+                "left to right then top to bottom. Use these closeups to assess caption wording/readability. "
+                "Do not confuse the different timestamps of the two sheets. "
                 "Assess story completeness from the selected clip transcript. The full recording can continue "
                 "after a complete selected moment; its continuation alone does not establish a truncated story. "
                 "Select one repair: layout (full frame), captions (retranscribe the original audio), boundaries "
@@ -220,11 +256,12 @@ def check_rendered(ai, path, payload, work, config=None):
                         ),
                         "technical": technical,
                         "sampled_frame_captions": frame_captions,
+                        "caption_closeups": caption_samples,
                         "speech_detected_in_final_video": observed,
                     }
                 ),
                 Verdict.model_json_schema(),
-                [board],
+                images,
             )
         )
     finally:
@@ -236,6 +273,9 @@ def check_rendered(ai, path, payload, work, config=None):
         verdict.repair = "captions"
         verdict.reasons = verdict.reasons[:11]
         verdict.reasons.append("Titrat nuk përputhen mjaftueshëm me fjalët/kohët e audios përfundimtare")
+    if not boundaries["passed"]:
+        verdict.repair = "boundaries"
+        verdict.reasons = verdict.reasons[:10] + boundaries["issues"][:2]
     return QualityResult(
         verdict=verdict, technical_passed=technical_passed, technical=technical, model=ai.model
     ).model_dump()
@@ -391,6 +431,7 @@ class AutomaticReview:
                     "rules": rules,
                     "threshold": store.settings().score_threshold,
                     "top_title": top_title(json.loads(rendered["payload"])) if rendered else "",
+                    "editing": json.loads(rendered["payload"]).get("editing", {}) if rendered else {},
                 }
                 key = f"{clip['id']}:v{clip['current_version']}:r{revision}:{payload['metadata_hash']}"
                 store.add_task(job["id"], "quality", key, payload, asset_ids=[asset["id"]])

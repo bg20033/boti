@@ -8,6 +8,7 @@ from pathlib import Path
 
 from boti.ai import select_candidates
 from boti.db import Store, encode, uid
+from boti.editing import boundary_evidence, refine_boundaries
 from boti.media import audio_slice, cut_segment, duration, extract_audio, make_proxy
 from boti.models import within
 from boti.rules import (
@@ -402,11 +403,22 @@ class Pipeline:
         threshold = self.store.settings().score_threshold
         campaign = self.campaign_rules(job["id"])
         rules, limits = clip_rules(campaign), analysis_limits(campaign) if campaign else None
-        candidates, banned = [], 0
+        candidates, banned, incomplete = [], 0, 0
         for task in analysis:
             payload, result = json.loads(task["payload"]), json.loads(task["result"])
             for item in result["candidates"]:
                 if item["score"] < threshold or not within(item, limits):
+                    continue
+                # Recheck on the main too: older analysis workers may propose a trailing sentence.
+                item = refine_boundaries(
+                    item,
+                    payload["transcript"]["segments"],
+                    payload["duration"],
+                    rules.min_seconds,
+                    rules.max_seconds,
+                )
+                if item is None:
+                    incomplete += 1
                     continue
                 candidate = dict(item)
                 candidate["start"] += payload["offset"]
@@ -429,9 +441,12 @@ class Pipeline:
                         ],
                     }
                     for seg in payload["transcript"]["segments"]
-                    if seg["end"] >= item["start"] - 5 and seg["start"] <= item["end"] + 5
+                    if seg["end"] >= item["start"] - 8 and seg["start"] <= item["end"] + 8
                 ]
                 candidate["source_duration"] = json.loads(job["metadata"]).get("duration", candidate["end"])
+                candidate["editorial_evidence"] = boundary_evidence(
+                    candidate["source_context"], candidate["start"], candidate["end"]
+                )
                 # A model cannot be trusted to honour a word ban; the transcript can be checked exactly.
                 if banned_hits(
                     " ".join((spoken_text(candidate), candidate["title"], candidate.get("caption", ""))),
@@ -447,6 +462,11 @@ class Pipeline:
             candidates = candidates[: rules.max_clips_per_video]  # Already ordered best first.
         if banned:
             self.store.event(f"{banned} momente u hoqën për fjalë të ndaluara nga fushata", job_id=job["id"])
+        if incomplete:
+            self.store.event(
+                f"{incomplete} momente u hoqën sepse nuk kishin prerje të plotë brenda kufirit të kohës",
+                job_id=job["id"],
+            )
         targets = json.loads(job["group_ids"])
         with self.store.connect(immediate=True) as db:
             # Single transaction makes replay after a process crash harmless.

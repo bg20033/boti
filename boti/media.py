@@ -215,14 +215,31 @@ def scene_changes(video: Path) -> list[float]:
     ][:80]
 
 
-def storyboard(video: Path, destination: Path, start: float, end: float, count=6, portrait=False):
+def storyboard(
+    video: Path,
+    destination: Path,
+    start: float,
+    end: float,
+    count=6,
+    portrait=False,
+    timestamps=None,
+    caption_position=None,
+):
     from PIL import Image, ImageDraw
 
-    width, height = (360, 640) if portrait else (320, 180)
-    canvas = Image.new("RGB", (width * 3, (height + 24) * ((count + 2) // 3)), "#132a4a")
+    times = (
+        timestamps
+        if timestamps is not None
+        else [start + (end - start) * (i + 0.5) / count for i in range(count)]
+    )
+    count = len(times)
+    width, height = (540, 200) if caption_position else (360, 640) if portrait else (320, 180)
+    columns = 2 if caption_position else 3
+    canvas = Image.new(
+        "RGB", (width * columns, (height + 24) * ((count + columns - 1) // columns)), "#132a4a"
+    )
     draw = ImageDraw.Draw(canvas)
-    for index in range(count):
-        second = start + (end - start) * (index + 0.5) / count
+    for index, second in enumerate(times):
         frame = destination.with_name(f"frame-{index}.jpg")
         run(
             [
@@ -238,12 +255,17 @@ def storyboard(video: Path, destination: Path, start: float, end: float, count=6
                 "-frames:v",
                 "1",
                 "-vf",
-                f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2",
+                (
+                    f"crop=iw:ih*400/1920:0:ih*{1920 - (650 if caption_position == 'middle' else 340) - 300}/1920,"
+                    if caption_position
+                    else ""
+                )
+                + f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2",
                 str(frame),
             ],
             timeout=60,
         )
-        x, y = (index % 3) * width, (index // 3) * (height + 24)
+        x, y = (index % columns) * width, (index // columns) * (height + 24)
         with Image.open(frame) as image:
             canvas.paste(image, (x, y))
         draw.text((x + 8, y + height + 4), f"{second:.1f}s", fill="white")

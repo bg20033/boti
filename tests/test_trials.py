@@ -118,7 +118,7 @@ def test_trial_candidate_count_is_a_cap_not_a_required_quota(store):
     candidates = [{"start": i * 40, "end": i * 40 + 30, "score": 90 - i, "title": str(i)} for i in range(6)]
     analysis = [
         {
-            "payload": encode({"offset": 0, "transcript": {"segments": []}}),
+            "payload": encode({"offset": 0, "duration": 300, "transcript": {"segments": []}}),
             "result": encode({"candidates": candidates}),
         }
     ]

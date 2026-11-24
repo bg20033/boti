@@ -6,6 +6,8 @@ Main + katër agjentë për të kthyer video të gjata (Kick, Twitch, YouTube os
 
 ## Çfarë është ndërtuar
 
+Versioni **0.12** përmirëson prerjet dhe provat e kontrollit të cilësisë. Fundet me `…` nuk trajtohen si fjali të përfunduara; kërkimi i fundit të fjalisë shkon deri 6 sekonda larg propozimit, brenda kufijve të fushatës. Main-i i rikontrollon prerjet edhe nga workerat e vjetër. Verifikuesi i përzgjedhjes merr vetëm fjalët brenda prerjes. Kontrolli final merr edhe pamje të zmadhuara nga titrat realë në video, me kohët e tyre, dhe ruan matjet e prerjes në raport. Një model që e pranon një prerje brenda fjale ose një fund të papërfunduar nuk e anashkalon këtë kontroll. Nuk aktivizohet publikimi dhe nuk ndryshohen aprovimet e klipeve të vjetra. Shih [cilësia dhe kufijtë e provës](docs/release-0.12.md) dhe [hapat për publikimin](docs/go-live-sq.md).
+
 Versioni **0.8** shton marrjen automatike të VOD-eve nga kanalet Kick. Te **Konfigurimi → Marrja automatike nga Kick → Shto kanale**, ngjit emrat e kanaleve, një për rresht, dhe cakto grupet/fushatën. Main-i kontrollon kanalet çdo 5 minuta dhe mbush radhën sapo lirohet kapaciteti. Mund të përfshish deri 50 VOD-et ekzistuese që kthen lista e kanalit në kontrollin e parë ose të ndjekësh vetëm videot e reja.
 
 Historia e zbulimit ruhet në SQLite. Një restart ose shkëputje e rrjetit e vazhdon radhën e ruajtur; videoja ekzistuese deduplikohet nga pipeline-i. Radha automatike fillimisht mban deri dy video aktive/në pritje gjithsej. Pezullimi i përgjithshëm, grupet/fushatat e pezulluara dhe kufiri i diskut respektohen. Linket live/private dhe videot ende në përpunim anashkalohen.

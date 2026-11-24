@@ -185,11 +185,16 @@ class LocalAI:
                 candidate = Candidate.model_validate(aligned)
                 image = work / "candidate.jpg"
                 storyboard(proxy, image, candidate.start, min(length, candidate.end))
-                context = [s for s in text if s["end"] > candidate.start and s["start"] < candidate.end]
+                from boti.pipeline import relative_segments
+
+                context = relative_segments(transcript["segments"], candidate.start, candidate.end)
                 check = self.chat(
                     system,
                     "Verify this proposed clip using its six chronological frames and transcript. Reject incomplete "
                     "sentences/stories, unsupported claims, meaningless action, long dead air, and missing payoffs. "
+                    "The transcript contains only words inside the proposed cut; its times start at zero. "
+                    "Do not credit setup or payoff outside these words/frames. Evaluate the first three seconds "
+                    "for an understandable hook and the last sentence for a resolved ending. "
                     "If speech is absent, a clear visual event can still qualify. Return approved, score, reason."
                     f"{brief}\n"
                     + json.dumps({"clip": candidate.model_dump(), "transcript": context}, ensure_ascii=False),
