@@ -2,9 +2,13 @@
 
 Main + katër agjentë për të kthyer video të gjata (Kick, Twitch, YouTube ose skedarë të fushatës) në klipe për TikTok, Instagram dhe YouTube, sipas rregullave të fushatës në clipping.net. AI lokale, mjete falas, pa abonim për përpunim. Paneli është në shqip dhe punon pa CDN ose shërbim AI në cloud.
 
-**12 grupe / 36 destinacione** krijohen fillimisht. Grupet shtohen nga paneli. Një klip caktohet në një grup dhe ruan destinacionin kur detyra kalon te një PC tjetër. YouTube/Instagram kanë radhë të pavarura; TikTok merr një paketë për postim manual.
+**12 grupe / 48 destinacione** krijohen fillimisht: TikTok, Instagram, YouTube dhe X. Grupet shtohen nga paneli. Një klip caktohet në një grup dhe ruan destinacionin kur detyra kalon te një PC tjetër. Upload-Post mund të lidhet për publikim automatik në të katër platformat; lidhjet direkte YouTube/Instagram dhe eksporti manual TikTok vazhdojnë të mbështeten.
 
 ## Çfarë është ndërtuar
+
+Versioni **0.13** shton **Llogaritë → Lidh profilin për publikim automatik** me Upload-Post, me verifikim të destinacioneve, kufij për llogari, privatësi të zgjedhur dhe konfirmim të rezultatit para shënimit “Publikuar”. TikTok drafts dhe rezultatet e paqarta kërkojnë verifikim; nuk ripostohen verbërisht. Nuk krijohet llogari, nuk blihet plan dhe nuk aktivizohet publikimi nga instalimi. [Udhëzimi 0.13](docs/release-0.13.md).
+
+MP4-të e reja ruhen në arkivin e PC-së që i editon. Main-i mban kopje të përkohshme për kontroll/shikim/upload dhe e heq pas kohës së cache-it vetëm kur arkivi është konfirmuar dhe videoja nuk është në përdorim nga një detyrë. Rikthimi bëhet nga workeri përmes lidhjes dalëse, me madhësi/SHA256 dhe token të përkohshëm; nuk duhet port i ri në Mint. **Duhet përditësuar edhe workeri**; videot e vjetra pa konfirmim arkivi nuk hiqen nga main-i.
 
 Versioni **0.12** përmirëson prerjet dhe provat e kontrollit të cilësisë. Fundet me `…` nuk trajtohen si fjali të përfunduara; kërkimi i fundit të fjalisë shkon deri 6 sekonda larg propozimit, brenda kufijve të fushatës. Main-i i rikontrollon prerjet edhe nga workerat e vjetër. Verifikuesi i përzgjedhjes merr vetëm fjalët brenda prerjes. Kontrolli final merr edhe pamje të zmadhuara nga titrat realë në video, me kohët e tyre, dhe ruan matjet e prerjes në raport. Një model që e pranon një prerje brenda fjale ose një fund të papërfunduar nuk e anashkalon këtë kontroll. Nuk aktivizohet publikimi dhe nuk ndryshohen aprovimet e klipeve të vjetra. Shih [cilësia dhe kufijtë e provës](docs/release-0.12.md) dhe [hapat për publikimin](docs/go-live-sq.md).
 

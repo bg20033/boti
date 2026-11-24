@@ -593,7 +593,7 @@ class Pipeline:
         platforms = (
             json.loads(campaign["rules_snapshot"])["platforms"]
             if campaign
-            else ["youtube", "instagram", "tiktok"]
+            else ["youtube", "instagram", "tiktok", "x"]
         )
         for task in self.store.all(
             "SELECT * FROM tasks WHERE job_id=? AND kind='render' AND status='complete'", (job["id"],)
@@ -658,7 +658,9 @@ class Pipeline:
                         clip["id"],
                         account["id"],
                         account["platform"],
-                        "manual_ready" if account["platform"] == "tiktok" else "queued",
+                        "manual_ready"
+                        if account["platform"] == "tiktok" and account["status"] != "connected"
+                        else "queued",
                         time.time(),
                         time.time(),
                     ),

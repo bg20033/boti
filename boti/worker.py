@@ -26,6 +26,7 @@ class WorkerConfig(BaseModel):
     token: str = Field(min_length=20)
     coordinator_url: str
     cache_dir: str = "worker-data"
+    archive_dir: str | None = None
     capabilities: list[str] = Field(
         default_factory=lambda: ["transcribe", "analyze", "render", "quality", "repair"]
     )
@@ -118,6 +119,11 @@ class Worker:
         self.config = config
         self.cache = Path(config.cache_dir).resolve() / config.id
         self.cache.mkdir(parents=True, exist_ok=True)
+        self.archive_dir = (
+            Path(config.archive_dir).resolve()
+            if config.archive_dir
+            else self.cache.parent / "archive" / config.id
+        )
         self.hardware = inspect_hardware(config)
         self.active: dict | None = None
         self.lost_lease = False
@@ -138,6 +144,8 @@ class Worker:
                     "cpu_percent": psutil.cpu_percent(),
                     "ram_percent": psutil.virtual_memory().percent,
                     "free_gb": round(shutil.disk_usage(self.cache).free / 1024**3, 1),
+                    "archive_folder": str(self.archive_dir),
+                    "archive_protocol": 1,
                 },
             }
             if self.active:
@@ -240,6 +248,9 @@ class Worker:
                 return
             if task["kind"] == "render":
                 output = Path(result.pop("output"))
+                from boti.archive import retain
+
+                result["archive"] = await asyncio.to_thread(retain, output, self.archive_dir)
 
                 async def blocks():
                     with output.open("rb") as handle:
@@ -285,6 +296,9 @@ class Worker:
 
     async def run(self):
         heartbeat = asyncio.create_task(self.heartbeat())
+        from boti.archive import service
+
+        archive_service = asyncio.create_task(service(self))
         checked = time.monotonic()
         log.info(
             "%s u nis. Aftësitë: %s",
@@ -309,6 +323,7 @@ class Worker:
         finally:
             self.stopped.set()
             await heartbeat
+            await archive_service
             await self.client.aclose()
 
 

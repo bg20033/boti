@@ -211,7 +211,10 @@ def test_real_video_end_to_end_with_worker_api_and_tiktok_export(
         },
     )
     assert upload.status_code == 200, upload.text
-    complete(task, upload.json())
+    from boti.archive import prune_cache, request_restore, retain
+
+    archive_folder = tmp_path / "mint-archive"
+    complete(task, {**upload.json(), "archive": retain(output, archive_folder)})
     pipeline.advance()
     task = claim()
     assert task["kind"] == "quality"
@@ -243,7 +246,7 @@ def test_real_video_end_to_end_with_worker_api_and_tiktok_export(
     clip = store.one("SELECT * FROM clips WHERE job_id=?", (job_id,))
     assert clip["status"] == "ready"
     assert store.one("SELECT status FROM jobs WHERE id=?", (job_id,))["status"] == "complete"
-    assert store.one("SELECT count(*) n FROM publications WHERE clip_id=?", (clip["id"],))["n"] == 3
+    assert store.one("SELECT count(*) n FROM publications WHERE clip_id=?", (clip["id"],))["n"] == 4
     assert (
         store.one("SELECT status FROM publications WHERE clip_id=? AND platform='tiktok'", (clip["id"],))[
             "status"
@@ -255,6 +258,22 @@ def test_real_video_end_to_end_with_worker_api_and_tiktok_export(
         export / "caption.txt"
     ).read_text() == "Only test material\n\n#test"
     assert json.loads((export / "metadata.json").read_text())["group_id"] == "pc-1-g1"
+    # Real FFmpeg output survives main-cache eviction and outbound worker restoration.
+    final_asset = store.one("SELECT * FROM assets WHERE id=?", (clip["asset_id"],))
+    store.execute("UPDATE worker_archives SET accessed=0")
+    prune_cache(store)
+    assert not store.config.path(final_asset["path"]).exists()
+    assert (archive_folder / f"{final_asset['sha256']}.mp4").is_file()
+    assert not request_restore(store, final_asset)
+    restoration = client.post("/api/worker/archive/claim", headers=worker_headers["pc-1"]).json()["restore"]
+    restored = client.put(
+        f"/api/worker/archive/{final_asset['id']}/restore",
+        content=output.read_bytes(),
+        headers={**worker_headers["pc-1"], "X-Restore-Token": restoration["token"]},
+    )
+    assert restored.status_code == 200
+    assert client.get(f"/api/clips/{clip['id']}/video", headers=admin_headers).content == output.read_bytes()
+    assert client.get(f"/api/clips/{clip['id']}/tiktok.zip", headers=admin_headers).status_code == 200
     # Cleanup must retain an output while any platform is still waiting.
     store.execute("UPDATE clips SET updated=? WHERE id=?", (time.time() - 40 * 86400, clip["id"]))
     pipeline.cleanup()

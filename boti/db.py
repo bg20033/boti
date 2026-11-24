@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS groups (
 );
 CREATE TABLE IF NOT EXISTS accounts (
  id TEXT PRIMARY KEY, group_id TEXT NOT NULL REFERENCES groups(id),
- platform TEXT NOT NULL CHECK(platform IN ('youtube','instagram','tiktok')),
+ platform TEXT NOT NULL CHECK(platform IN ('youtube','instagram','tiktok','x')),
  external_id TEXT, name TEXT, credentials TEXT, settings TEXT NOT NULL DEFAULT '{}',
  status TEXT NOT NULL DEFAULT 'disconnected', error TEXT,
  UNIQUE(group_id, platform)
@@ -116,6 +116,12 @@ class Store:
             db.executescript(SCHEMA)
             db.executescript(CAMPAIGN_SCHEMA)
             db.executescript(FEED_SCHEMA)
+            from boti.archive import SCHEMA as ARCHIVE_SCHEMA
+
+            db.executescript(ARCHIVE_SCHEMA)
+            from boti.upload_post import migrate as migrate_accounts
+
+            migrate_accounts(db)
             db.execute("INSERT OR IGNORE INTO settings VALUES ('config', ?)", (Settings().model_dump_json(),))
             from boti.quality import migrate
 
@@ -214,6 +220,10 @@ class Store:
                 group_id = f"pc-{index}-g{group_number}"
                 if not self.one("SELECT id FROM groups WHERE id=?", (group_id,)):
                     self.add_group(f"PC {index} · Grupi {group_number}", worker_id, group_id)
+        for group in self.all("SELECT id FROM groups"):
+            self.execute(
+                "INSERT OR IGNORE INTO accounts(id,group_id,platform) VALUES (?,?,'x')", (uid(), group["id"])
+            )
         return paths
 
     def add_group(self, name, preferred_worker=None, group_id=None):
@@ -223,7 +233,7 @@ class Store:
                 "INSERT INTO groups(id,name,preferred_worker,created) VALUES (?,?,?,?)",
                 (group_id, name, preferred_worker, time.time()),
             )
-            for platform in ("youtube", "instagram", "tiktok"):
+            for platform in ("youtube", "instagram", "tiktok", "x"):
                 db.execute(
                     "INSERT INTO accounts(id,group_id,platform,status) VALUES (?,?,?,?)",
                     (uid(), group_id, platform, "manual" if platform == "tiktok" else "disconnected"),

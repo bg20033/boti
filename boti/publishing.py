@@ -133,7 +133,7 @@ class Publisher:
             JOIN accounts a ON a.id=p.account_id JOIN groups g ON g.id=a.group_id
             LEFT JOIN reviews r ON r.clip_id=p.clip_id
             WHERE p.status IN ('queued','processing') AND p.not_before<=? AND a.status='connected'
-            AND g.paused=0 AND p.platform!='tiktok' AND coalesce(r.passed,1)=1
+            AND g.paused=0 AND coalesce(r.passed,1)=1
             ORDER BY p.updated,p.created LIMIT 1""",
             (time.time(),),
         )
@@ -153,6 +153,19 @@ class Publisher:
             return
         asset = self.store.one("SELECT * FROM assets WHERE id=?", (clip["asset_id"],))
         state = self.state(publication)
+        preferences = json.loads(account["settings"])
+        if not state and preferences.get("provider") == "upload_post":
+            recent = self.store.one(
+                """SELECT count(*) n,max(updated) last FROM publications
+                WHERE account_id=? AND id!=? AND updated>? AND
+                (status IN ('published','needs_reconciliation') OR (status IN ('processing','queued') AND state!='{}'))""",
+                (account["id"], publication["id"], time.time() - 86400),
+            )
+            if recent["n"] >= preferences.get("daily_limit", 3) or (
+                recent["last"] and time.time() - recent["last"] < preferences.get("interval_minutes", 60) * 60
+            ):
+                self.defer(publication["id"], "Postimi pret kufirin ditor ose intervalin e llogarisë", 300)
+                return
         rules = clip_rules(campaign["rules_snapshot"]) if campaign else None
         if rules and rules.max_posts_per_account_daily and not state:
             # Campaign pacing per account. An upload already started is always allowed to finish.
@@ -164,6 +177,11 @@ class Publisher:
             if recent >= rules.max_posts_per_account_daily:
                 self.defer(publication["id"], "Kufiri ditor i postimeve për këtë llogari u arrit", 1800)
                 return
+        from boti.archive import request_restore
+
+        if not asset or not request_restore(self.store, asset):
+            self.defer(publication["id"], "Videoja pret rikthimin nga PC-ja që e editoi", 30)
+            return
         self.store.execute(
             "UPDATE publications SET status='processing',updated=? WHERE id=?",
             (time.time(), publication["id"]),
@@ -176,11 +194,17 @@ class Publisher:
                 # Required campaign tags, mentions and disclosure are part of every post text.
                 metadata["post_text"] = final_caption(metadata, rules, publication["platform"])
                 metadata["hashtags"] = final_hashtags(metadata, rules)
-            result = (
-                self.youtube(publication, account, credentials, path, metadata, state)
-                if publication["platform"] == "youtube"
-                else self.instagram(publication, account, credentials, path, metadata, state)
-            )
+            if credentials.get("provider") == "upload_post":
+                from boti.upload_post import publish
+
+                metadata["post_text"] = final_caption(metadata, rules, publication["platform"])
+                result = publish(self, publication, account, credentials, path, metadata, state)
+            elif publication["platform"] == "youtube":
+                result = self.youtube(publication, account, credentials, path, metadata, state)
+            elif publication["platform"] == "instagram":
+                result = self.instagram(publication, account, credentials, path, metadata, state)
+            else:
+                raise Reconnect("Lidhe platformën me Upload-Post për publikim automatik")
             if result:
                 self.store.execute(
                     """UPDATE publications SET status='published',external_id=?,url=?,error=NULL,

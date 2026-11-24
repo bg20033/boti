@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 from pydantic import BaseModel, Field, model_validator
 
 Position = Literal["top_left", "top", "top_right", "bottom_left", "bottom", "bottom_right"]
-PLATFORM_CAPTION_LIMIT = {"youtube": 5000, "instagram": 2200, "tiktok": 2200}
+PLATFORM_CAPTION_LIMIT = {"youtube": 5000, "instagram": 2200, "tiktok": 2200, "x": 280}
 LANGUAGES = {
     "english": "en",
     "albanian": "sq",

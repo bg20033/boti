@@ -52,14 +52,15 @@ function renderAccountSetup(s) {
   if ($("account-onboarding").dataset.content === content) return;
   $("account-onboarding").dataset.content = content;
   const platforms = [
-    {id:"tiktok",tag:"TT",url:"https://www.tiktok.com/signup",info:"Krijo profilin në TikTok. Boti ruan emrin dhe përgatit MP4 + përshkrimin; postimin e përfundon në TikTok.",mode:"Postim manual"},
-    {id:"instagram",tag:"IG",url:"https://www.instagram.com/accounts/emailsignup/",info:"Për lidhjen aktuale të Botit përdor profil Business/Creator të lidhur me Facebook Page. Lidhja verifikohet me Instagram ID dhe Page access token.",mode:"Kërkon Meta API"},
-    {id:"youtube",tag:"YT",url:"https://www.youtube.com/create_channel",info:"Krijo kanalin YouTube. Boti përdor autorizimin Google OAuth me Desktop client nga projekti yt Google Cloud.",mode:"Google OAuth"}
+    {id:"tiktok",tag:"TT",url:"https://www.tiktok.com/signup",info:"Krijo profilin në TikTok dhe lidhe në Upload-Post për publikim automatik nga Boti.",mode:"Upload-Post"},
+    {id:"instagram",tag:"IG",url:"https://www.instagram.com/accounts/emailsignup/",info:"Përdor profil Business/Creator dhe lidhe në Upload-Post. Lidhja direkte me Meta mbetet gjithashtu e disponueshme.",mode:"Upload-Post / Meta"},
+    {id:"youtube",tag:"YT",url:"https://www.youtube.com/create_channel",info:"Krijo kanalin YouTube. Mund ta lidhësh përmes Upload-Post ose Google OAuth direkt.",mode:"Upload-Post / OAuth"},
+    {id:"x",tag:"X",url:"https://x.com/i/flow/signup",info:"Krijo profilin në X dhe lidhe në Upload-Post. Publikimi përdor radhën dhe kufijtë e këtij grupi.",mode:"Upload-Post"}
   ];
   $("account-onboarding").innerHTML = platforms.map(platform=>{
     const account = group.accounts.find(account=>account.platform===platform.id);
     const connected = account?.status === "connected" || (platform.id === "tiktok" && account?.name);
-    return `<article class="onboarding-card"><div class="onboarding-top"><span class="platform-icon">${platform.tag}</span><h3>${platformNames[platform.id]}</h3><span class="badge ${connected?"good":"warn"}">${connected?platform.id==="tiktok"?"Emri u ruajt":"Lidhur":"Pa lidhje"}</span></div><p>${platform.info}</p><small>${esc(account?.name || platform.mode)}</small><a href="${platform.url}" target="_blank" rel="noopener noreferrer">1. Krijo / hap llogarinë ↗</a><button class="secondary" data-setup-connect="${esc(account?.id || "")}" data-platform="${platform.id}" data-group="${esc(group.id)}" ${!account?"disabled":""}>2. ${connected?"Shiko lidhjen":"Lidhe me Botin"}</button></article>`;
+    return `<article class="onboarding-card"><div class="onboarding-top"><span class="platform-icon">${platform.tag}</span><h3>${platformNames[platform.id]}</h3><span class="badge ${connected?"good":"warn"}">${connected?account?.status==="connected"?"Lidhur":"Emri u ruajt":"Pa lidhje"}</span></div><p>${platform.info}</p><small>${esc(account?.name || platform.mode)}</small><a href="${platform.url}" target="_blank" rel="noopener noreferrer">1. Krijo / hap llogarinë ↗</a><button class="secondary" data-setup-connect="${esc(account?.id || "")}" data-platform="${platform.id}" data-group="${esc(group.id)}" ${!account?"disabled":""}>2. ${connected?"Shiko lidhjen":"Lidhe me Botin"}</button></article>`;
   }).join("");
 }
 

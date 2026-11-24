@@ -79,6 +79,10 @@ def file_digest(path, signature):
 
 
 def artifact_unchanged(store, asset):
+    from boti.archive import request_restore
+
+    if not request_restore(store, asset):
+        return False
     try:
         path = store.config.path(asset["path"])
         stat = path.stat()

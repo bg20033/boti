@@ -16,7 +16,7 @@ def job(store):
 def test_seed_is_idempotent_and_secrets_are_not_in_snapshot(store):
     store.seed()
     assert store.one("SELECT count(*) n FROM groups")["n"] == 12
-    assert store.one("SELECT count(*) n FROM accounts")["n"] == 36
+    assert store.one("SELECT count(*) n FROM accounts")["n"] == 48
     assert store.one("SELECT count(*) n FROM workers")["n"] == 4
     serialized = json.dumps(store.snapshot())
     assert "token_hash" not in serialized

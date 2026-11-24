@@ -58,6 +58,7 @@ function clipCard(clip, compact = false) {
     ${clipPreview(clip)}
     <div class="clip-body"><div class="clip-source"><span>${esc(clipSource(clip))}</span>${badge(clip.status)}</div><h3>${heading}</h3>
     <div class="clip-meta"><span>${esc(clip.group_name)}</span><span>${Math.round(clip.score)}/100 · v${clip.current_version || 1}</span></div>
+    ${clip.storage_worker ? `<p class="provider-storage">MP4 e ruajtur në ${esc(clip.storage_worker)}. Shikimi dhe publikimi presin këtë PC nëse është offline.</p>` : ""}
     ${clip.review_passed === 0 ? '<p class="quality-hold">Publikimi është ndalur nga vlerësimi yt.</p>' : ""}
     ${issues ? `<p class="quality-hold">${esc(issues)}</p>` : ""}
     ${clip.quality_reason || reports.length ? `<details class="quality-details"><summary>${["skipped", "technical_failed"].includes(clip.status) ? "Pse nuk kaloi kontrollin?" : "Kontrolli i cilësisë"}</summary>${clip.quality_reason ? `<p class="review-note">${esc(clip.quality_reason)}</p>` : ""}${reports.map(report => `<p>v${report.version} · ${report.passed ? "Kaloi" : "Nuk kaloi"}: ${esc((report.result.verdict?.reasons || []).join("; "))}</p>`).join("")}</details>` : ""}

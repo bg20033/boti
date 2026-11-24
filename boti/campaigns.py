@@ -43,7 +43,7 @@ class Campaign(BaseModel):
     rules: str = Field(default="", max_length=15000)
     group_ids: list[str] = Field(default_factory=list, max_length=500)
     platforms: list[str] = Field(
-        default_factory=lambda: ["youtube", "instagram", "tiktok"], min_length=1, max_length=3
+        default_factory=lambda: ["youtube", "instagram", "tiktok", "x"], min_length=1, max_length=4
     )
     status: str = Field(default="draft", pattern="^(draft|active|paused|closed)$")
     payout_type: str = Field(default="payrate", pattern="^(payrate|pot|bounty)$")
@@ -75,7 +75,7 @@ class Campaign(BaseModel):
                 raise ValueError("Përdor URL HTTPS të clipping.net")
         if self.rate_unit not in (1000, 100000):
             raise ValueError("Njësia duhet të jetë 1,000 ose 100,000 shikime")
-        if any(p not in {"youtube", "instagram", "tiktok"} for p in self.platforms):
+        if any(p not in {"youtube", "instagram", "tiktok", "x"} for p in self.platforms):
             raise ValueError("Platformë e pambështetur")
         self.platforms = list(dict.fromkeys(self.platforms))
         self.group_ids = list(dict.fromkeys(self.group_ids))

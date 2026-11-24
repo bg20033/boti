@@ -103,7 +103,7 @@ def test_automatic_lifecycle_is_restart_safe(store, monkeypatch, outcomes, expec
     assert store.one("SELECT status FROM jobs WHERE id=?", (job,))["status"] == "complete"
     assert store.one("SELECT count(*) n FROM quality_reports")["n"] == len(outcomes)
     assert store.one("SELECT count(*) n FROM reviews")["n"] == 0
-    assert store.one("SELECT count(*) n FROM publications")["n"] == (3 if expected == "ready" else 0)
+    assert store.one("SELECT count(*) n FROM publications")["n"] == (4 if expected == "ready" else 0)
     assert store.one("SELECT count(*) n FROM tasks WHERE kind='repair'")["n"] == versions - 1
     assert publish_allowed(store, row) == (expected == "ready")
     pipeline.advance()
@@ -265,7 +265,7 @@ def test_automatic_gate_binds_artifact_metadata_rules_and_manual_veto(
     finish_quality(store, True)
     pipe.advance()
     assert not publish_allowed(store, clip)
-    assert store.one("SELECT count(*) n FROM publications")["n"] == 3
+    assert store.one("SELECT count(*) n FROM publications")["n"] == 4
     assert store.one("SELECT count(*) n FROM quality_reports")["n"] == 2
     assert client.get(f"/api/clips/{clip_id}/tiktok.zip", headers=admin_headers).status_code == 409
 

@@ -16,7 +16,7 @@ from typing import Literal
 
 import httpx
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
@@ -144,6 +144,9 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
                 asyncio.create_task(loop(pipeline.cleanup, 3600)),
                 asyncio.create_task(loop(feeds.tick, 5)),
             ]
+            from boti.archive import prune_cache
+
+            tasks.append(asyncio.create_task(loop(lambda: prune_cache(store), 60)))
         try:
             yield
         finally:
@@ -190,6 +193,9 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
     from boti.clip_edits import routes as edit_routes
 
     app.include_router(edit_routes(store, admin))
+    from boti.upload_post import routes as provider_routes
+
+    app.include_router(provider_routes(store, admin))
 
     def worker(request: Request):
         authorization = request.headers.get("authorization", "")
@@ -205,6 +211,10 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
             return store.lease(task_id, identity["id"], token or "")
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
+
+    from boti.archive import routes as archive_routes
+
+    archive_routes(app, store, worker)
 
     @app.get("/healthz")
     def health():
@@ -555,9 +565,16 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
                 )
                 if not within(candidate.model_dump(), payload.get("limits")):
                     raise ValueError("Korrigjimi del jashtë kohëzgjatjes së fushatës")
+                if candidate.end > original.get("source_duration", candidate.end) + 0.05:
+                    raise ValueError("Korrigjimi del jashtë videos origjinale")
+                if payload.get("repair") != "boundaries" and (candidate.start, candidate.end) != (
+                    original["start"],
+                    original["end"],
+                ):
+                    raise ValueError("Vetëm riparimi i prerjes mund të ndryshojë kohët")
                 if (
                     abs(candidate.start - original["start"]) > 2.2
-                    or abs(candidate.end - original["end"]) > 2.2
+                    or abs(candidate.end - original["end"]) > 6.2
                 ):
                     raise ValueError("Korrigjimi tejkalon kufijtë e lejuar")
                 segments = Transcript.model_validate({"segments": submitted["segments"]}).model_dump()[
@@ -606,6 +623,16 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
                     },
                 }
             store.finish(task_id, identity["id"], body.lease_token, result=result)
+            archive = body.result.get("archive") if task["kind"] == "render" else None
+            if (
+                isinstance(archive, dict)
+                and archive.get("sha256") == asset["sha256"]
+                and archive.get("size") == asset["size"]
+            ):
+                store.execute(
+                    "INSERT OR REPLACE INTO worker_archives VALUES (?,?,?,?,?,?)",
+                    (asset["id"], identity["id"], asset["sha256"], asset["size"], time.time(), time.time()),
+                )
         except (ValueError, KeyError, TypeError) as exc:
             raise HTTPException(422, str(exc)) from exc
         return {"ok": True}
@@ -697,18 +724,36 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
                 and source
                 and config.path(source).is_file()
             )
+            location = (
+                store.one("SELECT worker_id FROM worker_archives WHERE asset_id=?", (item["asset_id"],))
+                if item["asset_id"]
+                else None
+            )
+            item["storage_worker"] = location["worker_id"] if location else None
             for publication in item["publications"]:
                 if publication["status"] == "queued" and publication["account_status"] != "connected":
                     publication["display_status"] = "awaiting_connection"
         return {"clips": result, "total": total, "limit": limit, "offset": offset}
 
     @app.get("/api/clips/{clip_id}/video", dependencies=[Depends(admin)])
-    def clip_video(clip_id: str):
+    async def clip_video(clip_id: str):
         clip = store.one("SELECT asset_id FROM clips WHERE id=?", (clip_id,))
         asset = store.one("SELECT * FROM assets WHERE id=?", (clip["asset_id"],)) if clip else None
-        if not asset or not config.path(asset["path"]).exists():
+        if not asset:
             raise HTTPException(404, "Videoja nuk është gati ose është arkivuar")
-        return FileResponse(config.path(asset["path"]), media_type="video/mp4")
+        from boti.archive import request_restore
+
+        for _ in range(60):
+            if request_restore(store, asset):
+                return FileResponse(config.path(asset["path"]), media_type="video/mp4")
+            if not store.one("SELECT 1 FROM worker_archives WHERE asset_id=?", (asset["id"],)):
+                raise HTTPException(404, "Videoja nuk është gati ose është arkivuar")
+            await asyncio.sleep(0.5)
+        raise HTTPException(
+            503,
+            "Videoja pret rikthimin nga workeri; kontrollo nëse PC-ja është online",
+            headers={"Retry-After": "10"},
+        )
 
     @app.get("/api/clips/{clip_id}/tiktok.zip", dependencies=[Depends(admin)])
     async def tiktok_zip(clip_id: str, background_tasks: BackgroundTasks):
@@ -720,6 +765,14 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
         if not publish_allowed(store, clip):
             raise HTTPException(409, "Klipi pret kontrollin aktual ose konfirmimet e fushatës")
         folder = config.root / "exports" / clip["group_id"] / clip_id
+        from boti.archive import request_restore
+
+        asset = store.one("SELECT * FROM assets WHERE id=?", (clip["asset_id"],))
+        if not request_restore(store, asset):
+            raise HTTPException(
+                503, "Paketa pret videon nga workeri; provo përsëri pas pak", headers={"Retry-After": "10"}
+            )
+        Pipeline(store).export_tiktok(clip, clip["asset_id"])
         if not (folder / "video.mp4").exists():
             raise HTTPException(404)
         target = config.root / "exports" / f"download-{uid()}.zip"
@@ -756,6 +809,7 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
                     "youtube": {"www.youtube.com", "youtube.com", "youtu.be"},
                     "instagram": {"www.instagram.com", "instagram.com"},
                     "tiktok": {"www.tiktok.com", "tiktok.com"},
+                    "x": {"x.com", "www.x.com", "twitter.com", "www.twitter.com"},
                 }[publication["platform"]]
                 if parsed.scheme != "https" or parsed.host not in allowed:
                     raise HTTPException(422, "Përdor linkun HTTPS të publikimit në platformën përkatëse")
@@ -766,7 +820,11 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
         else:
             if not body.confirmed_not_published:
                 raise HTTPException(422, "Verifiko që videoja nuk është publikuar para riprovimit")
-            if publication["platform"] == "tiktok":
+            account = store.one("SELECT settings FROM accounts WHERE id=?", (publication["account_id"],))
+            if (
+                publication["platform"] == "tiktok"
+                and json.loads(account["settings"]).get("provider") != "upload_post"
+            ):
                 status = "manual_ready"
             else:
                 status = "queued"
@@ -788,6 +846,12 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
 
     @app.get("/")
     def index():
-        return FileResponse(STATIC / "index.html")
+        page = (STATIC / "index.html").read_text(encoding="utf-8")
+        page = re.sub(
+            r'((?:src|href)="/static/[^"]+)"',
+            lambda match: match[1].split("?")[0] + f'?v={__version__}"',
+            page,
+        )
+        return HTMLResponse(page, headers={"Cache-Control": "no-store"})
 
     return app

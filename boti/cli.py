@@ -189,7 +189,7 @@ def main():
         WorkerConfig(id="check", token="x" * 32, coordinator_url=args.url)
         files = store.seed(args.url)
         print(
-            f"U përgatitën 4 PC / 12 grupe / 36 llogari.\nÇelësi i panelit: {config.root / 'secrets/admin.token'}"
+            f"U përgatitën 4 PC / 12 grupe / 48 destinacione.\nÇelësi i panelit: {config.root / 'secrets/admin.token'}"
         )
         for path in files:
             print(f"Konfigurimi privat për PC: {path}")

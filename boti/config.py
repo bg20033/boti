@@ -32,6 +32,8 @@ class Settings(BaseModel):
     instagram_api_version: str = "v24.0"
     original_retention_days: int = Field(default=7, ge=1)
     output_retention_days: int = Field(default=30, ge=1)
+    worker_archive_enabled: bool = True
+    worker_cache_minutes: int = Field(default=10, ge=1, le=1440)
     target_clips_daily: int = Field(default=1000, ge=1)
     max_active_jobs: int = Field(default=2, ge=1, le=20)
     max_prepared_tasks: int = Field(default=8, ge=1, le=100)
