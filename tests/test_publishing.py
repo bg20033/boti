@@ -44,6 +44,19 @@ def publication(store, platform="youtube", group="pc-1-g1", project="shared-proj
     return pub_id
 
 
+def test_global_posting_pacing_also_limits_direct_youtube_without_sending_requests(store):
+    first = publication(store)
+    store.execute("UPDATE publications SET status='published' WHERE id=?", (first,))
+    second = publication(store)
+    with httpx.Client(
+        transport=httpx.MockTransport(lambda request: pytest.fail("Paced post sent network request"))
+    ) as http:
+        Publisher(store, http).tick()
+    row = store.one("SELECT * FROM publications WHERE id=?", (second,))
+    assert row["status"] == "queued" and row["not_before"] > time.time()
+    assert "intervalin" in row["error"]
+
+
 @pytest.mark.parametrize("platform", ["youtube", "instagram"])
 def test_failed_review_holds_publication_and_preserves_upload_recovery(
     store, client, admin_headers, monkeypatch, platform

@@ -28,6 +28,8 @@ class Settings(BaseModel):
     lease_seconds: int = Field(default=120, ge=30, le=600)
     paused: bool = False
     publishing_enabled: bool = False
+    posts_per_account_daily: int = Field(default=3, ge=1, le=1000)
+    post_interval_minutes: int = Field(default=60, ge=0, le=1440)
     youtube_daily_uploads: int = Field(default=100, ge=1, le=100000)
     instagram_api_version: str = "v24.0"
     original_retention_days: int = Field(default=7, ge=1)
@@ -41,6 +43,7 @@ class Settings(BaseModel):
     download_fragments: int = Field(default=4, ge=1, le=16)
     caption_style: str = Field(default="highlight", pattern="^(highlight|plain)$")
     analysis_worker_id: str | None = Field(default=None, min_length=1, max_length=100)
+    quality_worker_id: str | None = Field(default=None, min_length=1, max_length=100)
     editing: EditStyle = Field(default_factory=EditStyle)
 
 

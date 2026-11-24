@@ -137,6 +137,8 @@ def publish_allowed(store, clip):
     if review and not review["passed"]:
         return False
     clip = store.one("SELECT * FROM clips WHERE id=?", (clip["id"],)) or clip
+    if clip["status"] == "deleted":
+        return False
     job = store.one("SELECT * FROM jobs WHERE id=?", (clip["job_id"],))
     if job and job["run_mode"] == "trial":
         return False

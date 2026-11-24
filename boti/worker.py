@@ -56,6 +56,7 @@ def inspect_hardware(config: WorkerConfig, probe_ai=False) -> dict:
     hardware = {
         "boti_version": __version__,
         "render_revision": RENDER_REVISION,
+        "quality_revision": 1,
         "os": platform.platform(),
         "cpu_count": psutil.cpu_count(),
         "ram_gb": round(psutil.virtual_memory().total / 1024**3, 1),
@@ -146,6 +147,7 @@ class Worker:
                     "free_gb": round(shutil.disk_usage(self.cache).free / 1024**3, 1),
                     "archive_folder": str(self.archive_dir),
                     "archive_protocol": 1,
+                    "cache_purge_generation": getattr(self, "cache_purge_generation", 0),
                 },
             }
             if self.active:
@@ -311,6 +313,10 @@ class Worker:
                     self.hardware = await asyncio.to_thread(inspect_hardware, self.config)
                     checked = time.monotonic()
                 try:
+                    from boti.purge import service_one
+
+                    if await service_one(self):
+                        continue
                     response = await self.client.post("/api/worker/claim")
                     response.raise_for_status()
                     task = response.json().get("task")

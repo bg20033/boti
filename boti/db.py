@@ -119,6 +119,9 @@ class Store:
             from boti.archive import SCHEMA as ARCHIVE_SCHEMA
 
             db.executescript(ARCHIVE_SCHEMA)
+            from boti.purge import SCHEMA as PURGE_SCHEMA
+
+            db.executescript(PURGE_SCHEMA)
             from boti.upload_post import migrate as migrate_accounts
 
             migrate_accounts(db)
@@ -129,6 +132,9 @@ class Store:
             from boti.trials import migrate as migrate_trials
 
             migrate_trials(db)
+            from boti.purge import migrate as migrate_media_generation
+
+            migrate_media_generation(db)
         admin_file = config.root / "secrets" / "admin.token"
         if not admin_file.exists():
             private_write(admin_file, secrets.token_urlsafe(32))
@@ -272,6 +278,11 @@ class Store:
             review_mode = "automatic"
             source_id += f":trial:{trial_start}:{trial_seconds}:{trial_limit}"
         with self.connect(immediate=True) as db:
+            generation = int(
+                db.execute("SELECT value FROM settings WHERE key='media_generation'").fetchone()[0]
+            )
+            if generation:
+                source_id += f":generation:{generation}"
             existing = db.execute("SELECT id FROM jobs WHERE source_id=?", (source_id,)).fetchone()
             if existing:
                 linked = db.execute(
@@ -301,7 +312,7 @@ class Store:
             job_id = uid()
             now = time.time()
             db.execute(
-                "INSERT INTO jobs(id,source_id,url,group_ids,metadata,created,updated,provider,video_id,review_mode,run_mode,trial_start,trial_seconds,trial_limit) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO jobs(id,source_id,url,group_ids,metadata,created,updated,provider,video_id,review_mode,run_mode,trial_start,trial_seconds,trial_limit,media_generation) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     job_id,
                     source_id,
@@ -317,6 +328,7 @@ class Store:
                     trial_start,
                     trial_seconds,
                     trial_limit,
+                    generation,
                 ),
             )
             if campaign:
@@ -387,13 +399,23 @@ class Store:
             ).fetchone():
                 return None
             workers = db.execute("SELECT id,capabilities,hardware,last_seen,paused FROM workers").fetchall()
-            legacy = eligible_capabilities(workers, settings.analysis_worker_id, now)[worker_id]
-            modern = eligible_capabilities(workers, settings.analysis_worker_id, now, render_revision=1)[
-                worker_id
-            ]
-            titled = eligible_capabilities(workers, settings.analysis_worker_id, now, render_revision=2)[
-                worker_id
-            ]
+            legacy = eligible_capabilities(
+                workers, settings.analysis_worker_id, now, quality_worker_id=settings.quality_worker_id
+            )[worker_id]
+            modern = eligible_capabilities(
+                workers,
+                settings.analysis_worker_id,
+                now,
+                render_revision=1,
+                quality_worker_id=settings.quality_worker_id,
+            )[worker_id]
+            titled = eligible_capabilities(
+                workers,
+                settings.analysis_worker_id,
+                now,
+                render_revision=2,
+                quality_worker_id=settings.quality_worker_id,
+            )[worker_id]
             capabilities = sorted(legacy | modern | titled)
             if not capabilities:
                 return None
@@ -507,7 +529,10 @@ class Store:
         workers = self.all("SELECT id,name,capabilities,hardware,last_seen,paused FROM workers ORDER BY id")
         settings = self.settings()
         eligible = eligible_capabilities(
-            workers, settings.analysis_worker_id, render_revision=settings.editing.required_revision
+            workers,
+            settings.analysis_worker_id,
+            render_revision=settings.editing.required_revision,
+            quality_worker_id=settings.quality_worker_id,
         )
         for worker in workers:
             worker["capabilities"] = json.loads(worker["capabilities"])
@@ -524,7 +549,8 @@ class Store:
                 (group["id"],),
             )
         counts = {
-            r["status"]: r["n"] for r in self.all("SELECT status,count(*) n FROM clips GROUP BY status")
+            r["status"]: r["n"]
+            for r in self.all("SELECT status,count(*) n FROM clips WHERE status!='deleted' GROUP BY status")
         }
         return {
             "workers": workers,
@@ -565,6 +591,7 @@ class Store:
             self.settings().analysis_worker_id,
             now,
             render_revision=self.settings().editing.required_revision,
+            quality_worker_id=self.settings().quality_worker_id,
         )
         result = []
         for kind in ("transcribe", "analyze", "render", "quality", "repair"):

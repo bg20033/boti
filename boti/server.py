@@ -215,6 +215,9 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
     from boti.archive import routes as archive_routes
 
     archive_routes(app, store, worker)
+    from boti.purge import routes as purge_routes
+
+    purge_routes(app, store, worker)
 
     @app.get("/healthz")
     def health():
@@ -280,6 +283,12 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
         from boti.operations import operations
 
         result["operations"] = operations(store, result)
+        from boti.purge import status as purge_status
+
+        result["media_cleanup"] = purge_status(store)
+        from boti.capacity import estimate
+
+        result["capacity"] = estimate(store)
         return result
 
     @app.put("/api/settings", dependencies=[Depends(admin)])
@@ -292,6 +301,10 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
             "SELECT id FROM workers WHERE id=?", (body.analysis_worker_id,)
         ):
             raise HTTPException(422, "PC-ja e analizës nuk ekziston")
+        if body.quality_worker_id and not store.one(
+            "SELECT id FROM workers WHERE id=?", (body.quality_worker_id,)
+        ):
+            raise HTTPException(422, "PC-ja e cilësisë nuk ekziston")
         store.save_settings(body)
         return body
 
@@ -365,6 +378,10 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
         job = store.one("SELECT * FROM jobs WHERE id=?", (job_id,))
         if not job or job["status"] != "failed":
             raise HTTPException(409, "Vetëm punët me gabim mund të riprovohen")
+        if store.one(
+            "SELECT 1 FROM assets a JOIN deleted_assets d ON d.asset_id=a.id WHERE a.job_id=?", (job_id,)
+        ):
+            raise HTTPException(409, "Media e vjetër u fshi; shtoje linkun si punë të re")
         metadata = json.loads(job["metadata"])
         processing = bool(metadata.get("source") and config.path(metadata["source"]).exists())
         with store.connect(immediate=True) as db:
@@ -668,7 +685,7 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
             "skipped": ("skipped", "technical_failed"),
             "processing": ("preparing", "rendering"),
         }
-        conditions, parameters = [], []
+        conditions, parameters = ["c.status!='deleted'"], []
         if state != "all":
             conditions.append("c.status IN (" + ",".join("?" for _ in states[state]) + ")")
             parameters.extend(states[state])
@@ -743,7 +760,9 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
 
     @app.get("/api/clips/{clip_id}/video", dependencies=[Depends(admin)])
     async def clip_video(clip_id: str):
-        clip = store.one("SELECT asset_id FROM clips WHERE id=?", (clip_id,))
+        clip = store.one("SELECT asset_id,status FROM clips WHERE id=?", (clip_id,))
+        if clip and clip["status"] == "deleted":
+            raise HTTPException(410, "Videoja u fshi nga pronari")
         asset = store.one("SELECT * FROM assets WHERE id=?", (clip["asset_id"],)) if clip else None
         if not asset:
             raise HTTPException(404, "Videoja nuk është gati ose është arkivuar")

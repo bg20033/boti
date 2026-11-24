@@ -53,7 +53,7 @@ def operations(store, snapshot):
         sum(c.status IN ('ready','archived')) accepted,sum(c.status='skipped') rejected,
         sum(c.status='technical_failed') failed,
         sum(c.status NOT IN ('ready','archived','skipped','technical_failed')) active
-        FROM clips c JOIN jobs j ON j.id=c.job_id WHERE c.created>? GROUP BY j.run_mode""",
+        FROM clips c JOIN jobs j ON j.id=c.job_id WHERE c.created>? AND c.status!='deleted' GROUP BY j.run_mode""",
         (since,),
     )
     sections = store.all(

@@ -203,7 +203,7 @@ class Pipeline:
                 )
                 current = self.store.one("SELECT metadata FROM jobs WHERE id=?", (job["id"],))
                 required = ingest_reserve(json.loads(current["metadata"]), directory)
-                if not self.has_space(required):
+                if estimate and not self.has_space(required):
                     raise DownloadPaused(
                         f"VOD-i pret rreth {required / 1024**3:.1f} GB për burimin e mbetur dhe përgatitjen, mbi pragun e lirë"
                     )

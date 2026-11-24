@@ -154,21 +154,9 @@ class Publisher:
         asset = self.store.one("SELECT * FROM assets WHERE id=?", (clip["asset_id"],))
         state = self.state(publication)
         preferences = json.loads(account["settings"])
-        if not state and preferences.get("provider") == "upload_post":
-            recent = self.store.one(
-                """SELECT count(*) n,max(updated) last FROM publications
-                WHERE account_id=? AND id!=? AND updated>? AND
-                (status IN ('published','needs_reconciliation') OR (status IN ('processing','queued') AND state!='{}'))""",
-                (account["id"], publication["id"], time.time() - 86400),
-            )
-            if recent["n"] >= preferences.get("daily_limit", 3) or (
-                recent["last"] and time.time() - recent["last"] < preferences.get("interval_minutes", 60) * 60
-            ):
-                self.defer(publication["id"], "Postimi pret kufirin ditor ose intervalin e llogarisë", 300)
-                return
         rules = clip_rules(campaign["rules_snapshot"]) if campaign else None
         if rules and rules.max_posts_per_account_daily and not state:
-            # Campaign pacing per account. An upload already started is always allowed to finish.
+            # Report the campaign's stricter limit before general operator pacing.
             recent = self.store.one(
                 """SELECT count(*) n FROM publications WHERE account_id=? AND id!=? AND updated>?
                 AND (status IN ('published','needs_reconciliation') OR (status='processing' AND state!='{}'))""",
@@ -176,6 +164,20 @@ class Publisher:
             )["n"]
             if recent >= rules.max_posts_per_account_daily:
                 self.defer(publication["id"], "Kufiri ditor i postimeve për këtë llogari u arrit", 1800)
+                return
+        if not state:
+            recent = self.store.one(
+                """SELECT count(*) n,max(updated) last FROM publications
+                WHERE account_id=? AND id!=? AND updated>? AND
+                (status IN ('published','needs_reconciliation') OR (status IN ('processing','queued') AND state!='{}'))""",
+                (account["id"], publication["id"], time.time() - 86400),
+            )
+            if recent["n"] >= preferences.get("daily_limit", settings.posts_per_account_daily) or (
+                recent["last"]
+                and time.time() - recent["last"]
+                < preferences.get("interval_minutes", settings.post_interval_minutes) * 60
+            ):
+                self.defer(publication["id"], "Postimi pret kufirin ditor ose intervalin e llogarisë", 300)
                 return
         from boti.archive import request_restore
 

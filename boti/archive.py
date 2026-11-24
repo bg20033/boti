@@ -39,6 +39,10 @@ def retain(output, folder):
 
 
 def request_restore(store, asset):
+    from boti.purge import removed
+
+    if removed(store, asset["id"]):
+        return False
     path = store.config.path(asset["path"])
     with store.connect(immediate=True) as db:
         if path.is_file():
@@ -108,6 +112,10 @@ def routes(app, store, worker):
     @app.put("/api/worker/archive/{asset_id}/restore")
     async def restore(asset_id: str, request: Request, identity=Depends(worker)):
         def authorized():
+            from boti.purge import removed
+
+            if removed(store, asset_id):
+                raise HTTPException(410, "Videoja është fshirë nga pronari")
             row = store.one("SELECT * FROM archive_restores WHERE asset_id=?", (asset_id,))
             if (
                 not row
