@@ -1,5 +1,7 @@
 # Boti 0.16 — pamje Pro e lehtë dhe kontroll paralel
 
+0.16.1 e thellon vignette-n në qoshe, duke ruajtur qendrën dhe tekstet sipër efektit. Për këtë pamje duhen rinisur workerat me versionin 0.16.1.
+
 Konfigurimi → Titra dhe efekte ka stilin “Pro të lehtë”. Shton një vignette të zezë të butë rreth skajeve dhe errëson pak vetëm sfondin e turbullt në paraqitjen fit. Pamja kryesore ruan ndriçimin në qendër. Titrat, titulli, logoja dhe watermark-u vendosen sipër vignette-s. Efekti përdor hartë statike në FFmpeg, pa thirrje AI ose kalim shtesë renderimi. Nuk shton shirita të zinj dhe nuk pretendon të rikrijojë detaje të munguara në burim.
 
 Stili Pro ruan titrat me theksim/pop dhe kontrastin e lehtë; titullin e vendos me kontur, madhësi normale dhe kohëzgjatje 4 sekonda. Titulli mund të përdorë deri tri rreshta me font të përshtatur, që titujt më të gjatë të mos priten aq herët. Çdo kontroll mund të ndryshohet veçmas. Ndryshimet përdoren në renderimet e reja; videot ekzistuese nuk ndryshojnë pa rieditim dhe kontroll të ri cilësie.
