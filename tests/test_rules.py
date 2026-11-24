@@ -451,7 +451,18 @@ def test_local_file_is_cut_and_branded_by_campaign_rules(
             return httpx.Response(200, json={"done": True})
         body = json.loads(request.content)
         prompts.append(body["messages"][1]["content"])
-        result = {"approved": True, "score": 90, "reason": "Fixture"}
+        result = {
+            "approved": True,
+            "score": 90,
+            "reason": "Fixture",
+            "headline": {
+                "title": "The clear ending",
+                "caption": "A moment",
+                "evidence": "A short campaign moment with a clear ending.",
+                "third_person": True,
+                "grounded": True,
+            },
+        }
         if "repair" in body["format"]["properties"]:
             result = {"approved": True, "score": 90, "reasons": ["Fixture"], "repair": "none"}
         if "candidates" in body["format"]["properties"]:

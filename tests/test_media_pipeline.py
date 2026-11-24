@@ -147,7 +147,18 @@ def test_real_video_end_to_end_with_worker_api_and_tiktok_export(
         if request.url.path.endswith("generate"):
             return httpx.Response(200, json={"done": True})
         body = json.loads(request.content)
-        result = {"approved": True, "score": 90, "reason": "Synthetic fixture"}
+        result = {
+            "approved": True,
+            "score": 90,
+            "reason": "Synthetic fixture",
+            "headline": {
+                "title": "Integration fixture",
+                "caption": "Only test material",
+                "evidence": "Synthetic test speech",
+                "third_person": True,
+                "grounded": True,
+            },
+        }
         if "repair" in body["format"]["properties"]:
             result = {"approved": True, "score": 90, "reasons": ["Synthetic fixture"], "repair": "none"}
         if "candidates" in body["format"]["properties"]:

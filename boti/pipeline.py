@@ -60,11 +60,12 @@ class Pipeline:
         for candidate in self.store.all("SELECT * FROM jobs WHERE status='queued' ORDER BY created"):
             if candidate["run_mode"] == "trial" and not readiness(self.store)["ready"]:
                 continue
+            if not self.has_space(json.loads(candidate["metadata"]).get("reserve_bytes", 0)):
+                # A long VOD waiting for disk must not block a smaller queued recording.
+                continue
             queued = candidate
             break
         if queued:
-            if not self.has_space(json.loads(queued["metadata"]).get("reserve_bytes", 0)):
-                return
             try:
                 self.ingest(queued)
             except DownloadPaused as exc:
@@ -732,23 +733,41 @@ class Pipeline:
                             continue  # A download paused for disk pressure still owns its resume files.
                     path.unlink(missing_ok=True)
         for job in self.store.all(
-            "SELECT * FROM jobs WHERE status='complete' AND completed<?",
-            (now - settings.original_retention_days * 86400,),
+            """SELECT * FROM jobs WHERE status='complete' AND (
+                completed<? OR (run_mode='trial' AND completed<?))""",
+            (
+                now - settings.original_retention_days * 86400,
+                now - settings.trial_source_retention_hours * 3600,
+            ),
         ):
-            metadata = json.loads(job["metadata"])
-            if metadata.get("originals_cleaned"):
-                continue
-            for asset in self.store.all(
-                "SELECT * FROM assets WHERE job_id=? AND task_id IS NULL", (job["id"],)
-            ):
-                self.store.config.path(asset["path"]).unlink(missing_ok=True)
-            directory = self.store.config.root / "media" / job["id"]
-            for pattern in ("source.*", "trial.mp4", "trial-source.json", "trial-download.*"):
-                for path in directory.glob(pattern):
-                    path.unlink(missing_ok=True)
-            (directory / "audio.wav").unlink(missing_ok=True)
-            metadata["originals_cleaned"] = True
-            self.store.execute("UPDATE jobs SET metadata=? WHERE id=?", (encode(metadata), job["id"]))
+            # Serialize with manual re-editing: it must either keep its source or see it expired.
+            with self.store.connect(immediate=True) as db:
+                current = db.execute("SELECT * FROM jobs WHERE id=?", (job["id"],)).fetchone()
+                if not current or current["status"] != "complete":
+                    continue
+                completed = current["completed"]
+                if not completed or not (
+                    completed < now - settings.original_retention_days * 86400
+                    or (
+                        current["run_mode"] == "trial"
+                        and completed < now - settings.trial_source_retention_hours * 3600
+                    )
+                ):
+                    continue
+                metadata = json.loads(current["metadata"])
+                if metadata.get("originals_cleaned"):
+                    continue
+                for asset in db.execute(
+                    "SELECT * FROM assets WHERE job_id=? AND task_id IS NULL", (job["id"],)
+                ):
+                    self.store.config.path(asset["path"]).unlink(missing_ok=True)
+                directory = self.store.config.root / "media" / job["id"]
+                for pattern in ("source.*", "trial.mp4", "trial-source.json", "trial-download.*"):
+                    for path in directory.glob(pattern):
+                        path.unlink(missing_ok=True)
+                (directory / "audio.wav").unlink(missing_ok=True)
+                metadata["originals_cleaned"] = True
+                db.execute("UPDATE jobs SET metadata=? WHERE id=?", (encode(metadata), job["id"]))
         # Retain report/version records, but bound disk used by rejected superseded renders.
         for asset in self.store.all(
             """SELECT a.* FROM clip_versions v JOIN assets a ON a.id=v.asset_id

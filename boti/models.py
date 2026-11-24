@@ -70,6 +70,8 @@ class Candidate(BaseModel):
     hashtags: list[str] = Field(default_factory=list, max_length=8)
     reason: str = Field(default="", max_length=1000)
     verification_reason: str = Field(default="", max_length=1000)
+    headline_evidence: str = Field(default="", max_length=600)
+    headline_style: str = Field(default="", max_length=40)
     content_type: str = Field(default="mixed", pattern="^(talk|gaming|mixed)$")
 
     @model_validator(mode="after")

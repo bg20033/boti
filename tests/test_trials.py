@@ -343,3 +343,40 @@ def test_trial_cleanup_keeps_output_and_report_but_removes_source(store):
     assert not (directory / "trial-download.mp4").exists()
     assert (directory / "output.mp4").exists()
     assert report(store, store.one("SELECT * FROM jobs WHERE id=?", (job,)))["status"] == "complete"
+
+
+@pytest.mark.parametrize(
+    "mode,age,status,removed",
+    [
+        ("trial", 7, "complete", True),
+        ("trial", 5, "complete", False),
+        ("trial", 7, "processing", False),
+        ("production", 7, "complete", False),
+    ],
+)
+def test_short_trial_cache_never_expires_final_video_or_active_or_production_source(
+    store, mode, age, status, removed
+):
+    settings = store.settings()
+    settings.trial_source_retention_hours = 6
+    store.save_settings(settings)
+    job = (
+        new_trial(store)
+        if mode == "trial"
+        else store.create_job("https://twitch.tv/videos/123", "123", ["pc-1-g1"])[0]
+    )
+    directory = store.config.root / "media" / job
+    directory.mkdir()
+    source = directory / ("trial.mp4" if mode == "trial" else "source.mp4")
+    source.write_bytes(b"temporary downloaded source")
+    original = store.add_asset(job, source)
+    final = directory / "final.mp4"
+    final.write_bytes(b"rendered clip")
+    store.add_asset(job, final, task_id=store.add_task(job, "render", "test", {}))
+    store.execute("UPDATE jobs SET status=?,completed=? WHERE id=?", (status, time.time() - age * 3600, job))
+    Pipeline(store).cleanup()
+    assert source.exists() is not removed
+    assert final.read_bytes() == b"rendered clip"
+    assert store.one("SELECT id FROM assets WHERE id=?", (original["id"],))
+    metadata = json.loads(store.one("SELECT metadata FROM jobs WHERE id=?", (job,))["metadata"])
+    assert bool(metadata.get("originals_cleaned")) is removed

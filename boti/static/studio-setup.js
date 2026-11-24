@@ -38,6 +38,16 @@ function renderEditReadiness(s) {
   $("edit-worker-status").textContent = `${modern.length} PC ${modern.length === 1 ? "mbështet" : "mbështesin"} efektet e reja.${old.length ? " Përditëso dhe rinis: " + old.map(w=>w.name).join(", ") + "." : ""} Punët me efekte merren vetëm nga një worker që i mbështet.`;
 }
 
+function renderAutomationReadiness(s) {
+  const state = s.automation;
+  if (!state) return;
+  $("autopilot-state").textContent = state.configured ? "Konfigurimi gati" : "Ka hapa për përfundim";
+  $("autopilot-state").className = "badge " + (state.configured ? "good" : "warn");
+  $("autopilot-checks").innerHTML = state.checks.map(check => `<article><span class="badge ${check.ready?"good":"warn"}">${check.ready?"Gati":"Mungon"}</span><h3>${esc(check.label)}</h3><p>${esc(check.detail)}</p><button class="text-button" data-view="${esc(check.view)}" ${check.section?`data-section="${esc(check.section)}"`:""}>${check.ready?"Shiko":"Përfundo"} ↗</button></article>`).join("");
+  const missing = state.platforms.filter(p => !p.ready).map(p => platformNames[p.platform]);
+  $("autopilot-detail").textContent = [missing.length ? "Lidhjet që mungojnë: " + missing.join(", ") + "." : "",state.worker_updates.length ? "Për titujt dhe arkivin lokal përditëso: " + state.worker_updates.join(", ") + "." : "", ...state.campaign_issues.map(c => c.channel + ": " + c.issues.join("; ") + "."),state.note].filter(Boolean).join(" ");
+}
+
 function renderAccountSetup(s) {
   const select = $("setup-group"), signature = s.groups.map(g=>g.id+":"+g.name).join("|");
   if (select.dataset.groups !== signature) {

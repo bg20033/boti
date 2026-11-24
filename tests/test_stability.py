@@ -11,6 +11,20 @@ from boti.sources import file_identity, legacy_file_identity, reconcile_file_ide
 UUID = "01a1b7a3-f0e8-7254-aef0-2384158ccac2"
 
 
+def test_large_vod_waiting_for_disk_does_not_starve_smaller_job(store, monkeypatch):
+    large, _ = store.create_job("https://twitch.tv/videos/123", "123", ["pc-1-g1"])
+    small, _ = store.create_job("https://twitch.tv/videos/456", "456", ["pc-1-g1"])
+    store.execute("UPDATE jobs SET metadata=? WHERE id=?", (json.dumps({"reserve_bytes": 10**10}), large))
+    store.execute("UPDATE jobs SET metadata=? WHERE id=?", (json.dumps({"reserve_bytes": 10**8}), small))
+    pipeline = Pipeline(store)
+    ingested = []
+    monkeypatch.setattr(pipeline, "has_space", lambda reserve=0: reserve <= 10**9)
+    monkeypatch.setattr(pipeline, "ingest", lambda job: ingested.append(job["id"]))
+    pipeline.ingest_next()
+    assert ingested == [small]
+    assert store.one("SELECT status FROM jobs WHERE id=?", (large,))["status"] == "queued"
+
+
 @pytest.mark.parametrize(
     "allowed,identities,expected",
     [

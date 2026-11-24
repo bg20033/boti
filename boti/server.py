@@ -274,6 +274,9 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
         }
         missing = sorted({"transcribe", "analyze", "render", "quality", "repair"} - capable)
         result["readiness"] = {"missing_capabilities": missing, "workers_ready": not missing}
+        from boti.automation import automation_status
+
+        result["automation"] = automation_status(store, result)
         return result
 
     @app.put("/api/settings", dependencies=[Depends(admin)])

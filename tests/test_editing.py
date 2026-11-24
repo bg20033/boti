@@ -131,6 +131,13 @@ def test_ai_rechecks_overlapping_candidates_before_dedup(monkeypatch, tmp_path):
                 "approved": True,
                 "score": 92 if clip["title"] == "strong" else 80,
                 "reason": "Complete payoff",
+                "headline": {
+                    "title": clip["title"],
+                    "caption": "",
+                    "evidence": "Visible payoff",
+                    "third_person": True,
+                    "grounded": True,
+                },
             }
         return httpx.Response(200, json={"message": {"content": json.dumps(result)}})
 
@@ -160,7 +167,18 @@ def test_ai_recovers_invalid_candidate_durations(monkeypatch, tmp_path, valid_fi
             items = [invalid, valid] if valid_first else [invalid]
             result = {"candidates": items if len(proposals) == 1 else [valid]}
         else:
-            result = {"approved": True, "score": 90, "reason": "Complete story"}
+            result = {
+                "approved": True,
+                "score": 90,
+                "reason": "Complete story",
+                "headline": {
+                    "title": "Complete moment",
+                    "caption": "",
+                    "evidence": "Visible payoff",
+                    "third_person": True,
+                    "grounded": True,
+                },
+            }
         return httpx.Response(200, json={"message": {"content": json.dumps(result)}})
 
     result = LocalAI(client=httpx.Client(transport=httpx.MockTransport(transport))).analyze(

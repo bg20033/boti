@@ -44,7 +44,7 @@ function renderSnapshot(){
   const s=snapshot;
   if(typeof renderFeeds==="function")renderFeeds(s.feeds||[]);
   $("runtime-version").textContent="Boti "+(s.version||"—");
-  renderOverview(s);renderAccountSetup(s);renderEditReadiness(s);
+  renderOverview(s);renderAccountSetup(s);renderEditReadiness(s);renderAutomationReadiness(s);
   $("events").innerHTML=s.events.slice(0,8).map(event=>`<div class="event ${event.level==="error"?"error":""}"><span>${esc(event.message)}</span><time>${esc(ago(event.created))}</time></div>`).join("")||'<div class="empty">Ende pa aktivitet.</div>';
   $("disk-status").textContent=s.disk.free_gb+" GB të lira";
   const notices=[];
