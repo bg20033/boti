@@ -33,6 +33,7 @@ class Settings(BaseModel):
     youtube_daily_uploads: int = Field(default=100, ge=1, le=100000)
     instagram_api_version: str = "v24.0"
     original_retention_days: int = Field(default=7, ge=1)
+    delete_source_after_complete: bool = False
     trial_source_retention_hours: int = Field(default=24, ge=1, le=168)
     source_cache_pressure_minutes: int = Field(default=60, ge=0, le=10080)
     output_retention_days: int = Field(default=30, ge=1)

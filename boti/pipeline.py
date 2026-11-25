@@ -433,6 +433,10 @@ class Pipeline:
                 job_id=job["id"],
             )
 
+            from boti.retention import cleanup_sources
+
+            cleanup_sources(self.store, job["id"])
+
     def has_space(self, reserve_bytes=0):
         return (
             shutil.disk_usage(self.store.config.root).free
@@ -759,12 +763,6 @@ class Pipeline:
 
     def cleanup(self):
         settings, now = self.store.settings(), time.time()
-        pressure = settings.source_cache_pressure_minutes > 0 and any(
-            not self.has_space(
-                ingest_reserve(json.loads(j["metadata"]), self.store.config.root / "media" / j["id"])
-            )
-            for j in self.store.all("SELECT id,metadata FROM jobs WHERE status='queued'")
-        )
         for pattern in ("media/**/*.part", "media/**/*.part.*", "exports/download-*.zip"):
             for path in self.store.config.root.glob(pattern):
                 if path.stat().st_mtime < now - 86400:
@@ -777,70 +775,9 @@ class Pipeline:
                         if active:
                             continue  # A download paused for disk pressure still owns its resume files.
                     path.unlink(missing_ok=True)
-        for job in self.store.all(
-            """SELECT * FROM jobs WHERE status='complete' AND (
-                completed<? OR (run_mode='trial' AND completed<?) OR
-                (? AND run_mode='production' AND review_mode='automatic'
-                 AND provider IN ('kick','twitch','youtube') AND completed<?
-                 AND NOT EXISTS(SELECT 1 FROM job_campaigns jc WHERE jc.job_id=jobs.id)))""",
-            (
-                now - settings.original_retention_days * 86400,
-                now - settings.trial_source_retention_hours * 3600,
-                pressure,
-                now - settings.source_cache_pressure_minutes * 60,
-            ),
-        ):
-            # Serialize with manual re-editing: it must either keep its source or see it expired.
-            with self.store.connect(immediate=True) as db:
-                current = db.execute("SELECT * FROM jobs WHERE id=?", (job["id"],)).fetchone()
-                if not current or current["status"] != "complete":
-                    continue
-                completed = current["completed"]
-                if not completed or not (
-                    completed < now - settings.original_retention_days * 86400
-                    or (
-                        current["run_mode"] == "trial"
-                        and completed < now - settings.trial_source_retention_hours * 3600
-                    )
-                    or (
-                        pressure
-                        and current["run_mode"] == "production"
-                        and current["review_mode"] == "automatic"
-                        and current["provider"] in {"kick", "twitch", "youtube"}
-                        and completed < now - settings.source_cache_pressure_minutes * 60
-                        and not db.execute(
-                            "SELECT 1 FROM job_campaigns WHERE job_id=?", (job["id"],)
-                        ).fetchone()
-                    )
-                ):
-                    continue
-                metadata = json.loads(current["metadata"])
-                if metadata.get("originals_cleaned"):
-                    continue
-                protected = {
-                    self.store.config.path(a["path"])
-                    for a in db.execute(
-                        """SELECT a.path FROM assets a WHERE a.job_id=? AND
-                    (EXISTS(SELECT 1 FROM clips c WHERE c.asset_id=a.id) OR
-                     EXISTS(SELECT 1 FROM clip_versions v WHERE v.asset_id=a.id))""",
-                        (job["id"],),
-                    )
-                }
-                for asset in db.execute(
-                    """SELECT * FROM assets a WHERE job_id=? AND task_id IS NULL
-                    AND NOT EXISTS(SELECT 1 FROM clips c WHERE c.asset_id=a.id)
-                    AND NOT EXISTS(SELECT 1 FROM clip_versions v WHERE v.asset_id=a.id)""",
-                    (job["id"],),
-                ):
-                    self.store.config.path(asset["path"]).unlink(missing_ok=True)
-                directory = self.store.config.root / "media" / job["id"]
-                for pattern in ("source.*", "trial.mp4", "trial-source.json", "trial-download.*"):
-                    for path in directory.glob(pattern):
-                        if path.resolve() not in protected:
-                            path.unlink(missing_ok=True)
-                (directory / "audio.wav").unlink(missing_ok=True)
-                metadata["originals_cleaned"] = True
-                db.execute("UPDATE jobs SET metadata=? WHERE id=?", (encode(metadata), job["id"]))
+        from boti.retention import cleanup_sources
+
+        cleanup_sources(self.store)
         # Retain report/version records, but bound disk used by rejected superseded renders.
         for asset in self.store.all(
             """SELECT a.* FROM clip_versions v JOIN assets a ON a.id=v.asset_id

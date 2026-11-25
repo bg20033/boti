@@ -88,6 +88,8 @@
           <label>PC-ja kryesore për gjetjen e momenteve<select id="setting-analysis-worker"><option value="">Ndaje analizën mes PC-ve</option></select></label>
           <label>PC-ja për kontrollin e cilësisë<select id="setting-quality-worker"><option value="">Me analizën në main</option></select></label>
           <label>PC paralel për cilësinë<input id="setting-quality-parallel" type="number" min="1" max="4" value="1" required></label>
+          <label class="checkbox-row"><input id="setting-delete-source" type="checkbox"> Fshij videon burimore sapo të përfundojnë klipet</label>
+          <p class="muted">Liron origjinalin, audion dhe segmentet e përkohshme pas përfundimit të punës. Klipet dhe versionet e tyre ruhen. Për rieditim nga origjinali duhet ta shtosh/shkarkosh videon sërish.</p>
           <p class="muted">Me një PC cilësie të zgjedhur, ky kufi lejon edhe workerat e tjerë të përditësuar të kontrollojnë klipe të ndryshme paralelisht. Main-i mbetet për analizë dhe mbulon cilësinë kur workerat mungojnë.</p>
         </div><p class="muted">Gjetja e momenteve dhe kontrolli i cilësisë mund të ndahen në dy PC. PC-të e tjera bëjnë transkriptimin, titrat, renderimin dhe korrigjimet. Nëse një rol shkëputet, puna kalon te PC-të e disponueshme.</p><p id="routing-status" role="status" class="muted"></p>
 <div class="editing-panel" id="editing-controls">

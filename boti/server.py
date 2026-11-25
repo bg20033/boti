@@ -145,8 +145,10 @@ def create_app(data_dir=None, *, background=True, secure_cookies=False):
                 asyncio.create_task(loop(feeds.tick, 5)),
             ]
             from boti.archive import prune_cache
+            from boti.retention import cleanup_sources
 
             tasks.append(asyncio.create_task(loop(lambda: prune_cache(store), 60)))
+            tasks.append(asyncio.create_task(loop(lambda: cleanup_sources(store), 60)))
         try:
             yield
         finally:

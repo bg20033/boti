@@ -372,7 +372,9 @@ def test_short_trial_cache_never_expires_final_video_or_active_or_production_sou
     original = store.add_asset(job, source)
     final = directory / "final.mp4"
     final.write_bytes(b"rendered clip")
-    store.add_asset(job, final, task_id=store.add_task(job, "render", "test", {}))
+    render_task = store.add_task(job, "render", "test", {})
+    store.add_asset(job, final, task_id=render_task)
+    store.execute("UPDATE tasks SET status='complete' WHERE id=?", (render_task,))
     store.execute("UPDATE jobs SET status=?,completed=? WHERE id=?", (status, time.time() - age * 3600, job))
     Pipeline(store).cleanup()
     assert source.exists() is not removed

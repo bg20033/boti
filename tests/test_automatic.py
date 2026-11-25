@@ -110,6 +110,26 @@ def test_automatic_lifecycle_is_restart_safe(store, monkeypatch, outcomes, expec
     assert store.one("SELECT count(*) n FROM clip_versions")["n"] == versions
 
 
+def test_source_cleanup_runs_when_the_last_quality_check_finishes(store, monkeypatch):
+    job, clip = automatic_job(store, monkeypatch)
+    settings = store.settings()
+    settings.delete_source_after_complete = True
+    store.save_settings(settings)
+    source = store.config.root / "media" / job / "source.mp4"
+    pipeline = Pipeline(store)
+    pipeline.advance()
+    finish_render(store)
+    pipeline.advance()
+    assert source.is_file()  # Still needed while quality/repairs can request new cuts.
+    finish_quality(store, True)
+    pipeline.advance()
+    assert store.one("SELECT status FROM jobs WHERE id=?", (job,))["status"] == "complete"
+    assert not source.exists()
+    current = store.one("SELECT * FROM clips WHERE id=?", (clip,))
+    asset = store.one("SELECT path FROM assets WHERE id=?", (current["asset_id"],))
+    assert store.config.path(asset["path"]).is_file() and publish_allowed(store, current)
+
+
 def test_migration_preserves_legacy_rows_and_unique_provider_identity(tmp_path):
     from boti.config import Config
 
